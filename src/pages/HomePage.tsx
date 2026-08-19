@@ -306,7 +306,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   type="text"
                   value={startLocation}
                   onChange={(e) => setStartLocation(e.target.value)}
-                  placeholder="Enter starting location (e.g. Rishikesh)"
+                  placeholder="Enter starting city (e.g. Delhi, Mumbai)"
                   className="w-full bg-transparent text-sm text-[#202422] placeholder:text-[#8C938E] focus:outline-none font-medium"
                 />
               </div>
@@ -336,7 +336,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   type="text"
                   value={destination}
                   onChange={(e) => setDestination(e.target.value)}
-                  placeholder="Enter destination (e.g. Shimla)"
+                  placeholder="Enter destination (e.g. Goa, Jaipur, Manali)"
                   className="w-full bg-transparent text-sm text-[#202422] placeholder:text-[#8C938E] focus:outline-none font-medium"
                 />
               </div>

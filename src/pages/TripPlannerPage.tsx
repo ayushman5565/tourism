@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   MapPin, 
   Calendar, 
@@ -8,10 +8,11 @@ import {
   Navigation, 
   Clock, 
   Compass, 
-  DollarSign, 
+  IndianRupee, 
   Utensils, 
   Bed, 
   CheckCircle2, 
+  AlertCircle,
   Send,
   ArrowLeftRight,
   Shield,
@@ -21,10 +22,13 @@ import {
   Plane,
   Train,
   Bus,
-  Bike
+  Bike,
+  CloudSun,
+  Droplets,
+  Wind
 } from 'lucide-react';
 import { TripPlanResult, PageRoute, TransportOption, TransportMode } from '../types';
-import { generateCuratedTripPlan } from '../data/destinationsData';
+import { generateCuratedTripPlan, calculateDestinationBudgetBreakdown } from '../data/destinationsData';
 import { TourismMap } from '../components/TourismMap';
 
 interface TripPlannerPageProps {
@@ -37,7 +41,6 @@ interface TripPlannerPageProps {
   initialTravelers?: number;
   initialDays?: number;
   onNavigate: (page: PageRoute) => void;
-  onStartGroupTrip?: (destination: string) => void;
 }
 
 const DEFAULT_TRANSPORT_OPTIONS: TransportOption[] = [
@@ -98,6 +101,37 @@ const DEFAULT_TRANSPORT_OPTIONS: TransportOption[] = [
   },
 ];
 
+interface WeatherForecastDay {
+  date: string;
+  dayName: string;
+  maxTemp: number;
+  minTemp: number;
+  weatherCode: number;
+  condition: string;
+  rainProbability: number;
+}
+
+interface DestinationWeather {
+  location: string;
+  temperatureC: number;
+  feelsLikeC: number;
+  humidity: number;
+  windKph: number;
+  condition: string;
+  weatherCode: number;
+  isDay: boolean;
+  dailyForecast: WeatherForecastDay[];
+}
+
+function getWeatherEmoji(weatherCode: number, isDay: boolean = true): string {
+  if ([95, 96, 99].includes(weatherCode)) return '⛈️';
+  if ([71, 73, 75, 77, 85, 86].includes(weatherCode)) return '❄️';
+  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(weatherCode)) return '🌧️';
+  if ([45, 48].includes(weatherCode)) return '🌫️';
+  if ([1, 2, 3].includes(weatherCode)) return isDay ? '⛅' : '☁️';
+  return isDay ? '☀️' : '🌙';
+}
+
 export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
   initialStartLocation = '',
   initialDestination = '',
@@ -108,9 +142,8 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
   initialTravelers = 2,
   initialDays = 3,
   onNavigate,
-  onStartGroupTrip,
 }) => {
-  // 1. Core Inputs
+  // 1. Core Inputs with NO hardcoded default destination/dates
   const [startLocation, setStartLocation] = useState(initialStartLocation);
   const [destination, setDestination] = useState(initialDestination);
   const [selectedTransportMode, setSelectedTransportMode] = useState<TransportMode>(initialTravelMode || 'car');
@@ -119,19 +152,20 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
   const [transportOptions, setTransportOptions] = useState<TransportOption[]>(DEFAULT_TRANSPORT_OPTIONS);
   const [isLoadingTransport, setIsLoadingTransport] = useState(false);
 
-  // Additional Preferences
-  const [dates, setDates] = useState(`${initialDays} Days`);
+  // Additional Parameters (Strictly based on user entry)
+  const [days, setDays] = useState<number>(initialDays || 3);
   const [travelers, setTravelers] = useState<number>(initialTravelers || 2);
-  const [budgetTier, setBudgetTier] = useState<'budget' | 'moderate' | 'luxury'>('moderate');
+  const [datesText, setDatesText] = useState<string>('');
+  const [budgetTier, setBudgetTier] = useState<'budget' | 'moderate' | 'luxury' | 'custom'>('moderate');
+  const [customBudgetInput, setCustomBudgetInput] = useState<string>(initialBudget ? String(initialBudget) : '');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([
     'Historical Highlights',
     'Local Street Food',
-    'Peaceful Nature',
+    'Scenic Viewpoints',
   ]);
 
-  // Active Generated Plan (Clean initial state: null - no fake Jaipur data)
+  // Active Generated Plan
   const [activePlan, setActivePlan] = useState<TripPlanResult | null>(null);
-
   const [isGenerating, setIsGenerating] = useState(false);
   const [modificationPrompt, setModificationPrompt] = useState('');
   const [isModifying, setIsModifying] = useState(false);
@@ -142,6 +176,11 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
   const [calculatedDistanceKm, setCalculatedDistanceKm] = useState<number | undefined>(initialDistanceKm);
   const [calculatedDurationText, setCalculatedDurationText] = useState<string | undefined>(initialDurationText);
 
+  // Live Weather for the destination matching the trip duration
+  const [weatherData, setWeatherData] = useState<DestinationWeather | null>(null);
+  const [isFetchingWeather, setIsFetchingWeather] = useState(false);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
+
   // Sync when initial props change & reset previous itinerary state
   useEffect(() => {
     if (initialStartLocation) setStartLocation(initialStartLocation);
@@ -149,12 +188,18 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
     if (initialTravelMode) setSelectedTransportMode(initialTravelMode);
     if (initialDistanceKm) setCalculatedDistanceKm(initialDistanceKm);
     if (initialDurationText) setCalculatedDurationText(initialDurationText);
+    if (initialBudget) {
+      setCustomBudgetInput(String(initialBudget));
+      setBudgetTier('custom');
+    }
+    if (initialTravelers) setTravelers(initialTravelers);
+    if (initialDays) setDays(initialDays);
     
     // Clear previous itinerary when searching a new trip
     setActivePlan(null);
     setSelectedWaypointId(null);
     setModificationSuccess(null);
-  }, [initialStartLocation, initialDestination, initialTravelMode, initialDistanceKm, initialDurationText]);
+  }, [initialStartLocation, initialDestination, initialTravelMode, initialDistanceKm, initialDurationText, initialBudget, initialTravelers, initialDays]);
 
   // Fetch transport estimates whenever startLocation or destination changes
   useEffect(() => {
@@ -189,6 +234,46 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
     return () => clearTimeout(timer);
   }, [startLocation, destination]);
 
+  // Fetch live weather forecast for destination and duration
+  useEffect(() => {
+    const destClean = destination.trim();
+    if (!destClean) {
+      setWeatherData(null);
+      setWeatherError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const fetchWeather = async () => {
+      setIsFetchingWeather(true);
+      setWeatherError(null);
+      try {
+        const numForecastDays = Math.min(14, Math.max(1, days || 3));
+        const res = await fetch(`/api/weather?destination=${encodeURIComponent(destClean)}&days=${numForecastDays}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(`Weather error ${res.status}`);
+        const data = await res.json();
+        if (data.success) {
+          setWeatherData(data);
+        }
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          setWeatherData(null);
+          setWeatherError('Weather forecast unavailable for this destination.');
+        }
+      } finally {
+        if (!controller.signal.aborted) setIsFetchingWeather(false);
+      }
+    };
+
+    const timer = setTimeout(fetchWeather, 500);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [destination, days]);
+
   const currentSelectedTransport = transportOptions.find(
     (t) => t.id === selectedTransportMode
   ) || transportOptions[0] || DEFAULT_TRANSPORT_OPTIONS[0];
@@ -219,6 +304,8 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
     setActivePlan(null);
   };
 
+  const parsedCustomBudget = customBudgetInput.trim() ? parseFloat(customBudgetInput.replace(/[^0-9.]/g, '')) || 0 : undefined;
+
   // Generate Itinerary Flow for the exact searched destination
   const handleGenerateTrip = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -228,6 +315,8 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
     setModificationSuccess(null);
 
     const chosenTransport = currentSelectedTransport;
+    const formattedDates = datesText.trim() ? datesText.trim() : `${days} Days`;
+    const tierForGeneration = budgetTier === 'custom' ? 'moderate' : budgetTier;
 
     try {
       // Call server Gemini plan-trip endpoint
@@ -237,10 +326,10 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
         body: JSON.stringify({
           destination: destination.trim(),
           startLocation: startLocation.trim(),
-          dates,
+          dates: formattedDates,
           travelers,
           interests: selectedInterests,
-          budgetTier,
+          budgetTier: tierForGeneration,
           transportation: chosenTransport,
         }),
       });
@@ -254,13 +343,31 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
       const curated = generateCuratedTripPlan(
         destination.trim(),
         startLocation.trim(),
-        dates,
+        formattedDates,
         travelers,
         selectedInterests,
-        budgetTier
+        tierForGeneration
       );
       curated.selectedTransport = chosenTransport;
       curated.transportOptions = transportOptions;
+
+      // Ensure budget breakdown uses dynamic calculation
+      const calculatedBudget = calculateDestinationBudgetBreakdown({
+        destination: destination.trim(),
+        travelers,
+        days,
+        budgetTier,
+        customBudget: parsedCustomBudget,
+      });
+
+      curated.estimatedTotalBudget = {
+        stay: calculatedBudget.accommodation,
+        food: calculatedBudget.food,
+        transport: calculatedBudget.transportation,
+        sightseeing: calculatedBudget.activities,
+        total: calculatedBudget.total,
+        currency: '₹ INR',
+      };
 
       if (data.success && data.plan) {
         const p = data.plan;
@@ -270,8 +377,8 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
             id: `att-${idx}`,
             order: idx + 1,
             name: att.name,
-            lat: curated.waypoints[idx]?.lat || (curated.waypoints[0]?.lat ? curated.waypoints[0].lat + (idx * 0.005) : 31.1048),
-            lng: curated.waypoints[idx]?.lng || (curated.waypoints[0]?.lng ? curated.waypoints[0].lng + (idx * 0.005) : 77.1734),
+            lat: curated.waypoints[idx]?.lat || (curated.waypoints[0]?.lat ? curated.waypoints[0].lat + (idx * 0.005) : 28.6139),
+            lng: curated.waypoints[idx]?.lng || (curated.waypoints[0]?.lng ? curated.waypoints[0].lng + (idx * 0.005) : 77.2090),
             category: att.category || 'Attraction',
             recommendedDuration: att.recommendedDuration || '2 hours',
             distanceFromPreviousKm: idx === 0 ? 2.5 : 2.0 + idx,
@@ -308,37 +415,16 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
         }
       }
 
-      // Try fetching real place photos for waypoints
-      try {
-        const updatedWaypoints = await Promise.all(
-          curated.waypoints.map(async (wp) => {
-            try {
-              const pRes = await fetch(`/api/places/search?query=${encodeURIComponent(`${wp.name}, ${destination}`)}`);
-              const pData = await pRes.json();
-              if (pData.hasGooglePlaces && pData.photoUrl) {
-                return { ...wp, image: pData.photoUrl };
-              }
-            } catch (pErr) {
-              // fallback gracefully
-            }
-            return wp;
-          })
-        );
-        curated.waypoints = updatedWaypoints;
-      } catch (placeErr) {
-        console.warn('Google Places photo enrich fallback:', placeErr);
-      }
-
       setActivePlan(curated);
     } catch (err) {
       console.warn('Using curated fallback generator:', err);
       const plan = generateCuratedTripPlan(
         destination.trim(),
         startLocation.trim(),
-        dates,
+        formattedDates,
         travelers,
         selectedInterests,
-        budgetTier
+        tierForGeneration
       );
       plan.selectedTransport = chosenTransport;
       plan.transportOptions = transportOptions;
@@ -416,13 +502,13 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
       <div className="bg-[#FAF7F2] border-b border-[#EAE3D6] py-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <span className="text-xs uppercase tracking-widest font-semibold text-[#C8963E]">
-            Seamless Journey Planner
+            Custom Journey Planner
           </span>
           <h1 className="font-serif font-bold text-3xl sm:text-5xl text-[#183B32] mt-1 mb-2">
             Plan Your Travel Route
           </h1>
           <p className="text-sm sm:text-base text-[#57605B] max-w-2xl leading-relaxed">
-            Direct road routing, transport times, costs, and an unhurried AI travel itinerary tailored for your selected destination.
+            Direct road routing, transport times, destination-aware costs, and an unhurried travel itinerary tailored for your selected journey.
           </p>
         </div>
       </div>
@@ -442,7 +528,7 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
                   <h2 className="font-serif font-bold text-lg text-[#183B32]">
                     Route & Preferences
                   </h2>
-                  <span className="text-[11px] text-[#8C938E]">Step 1: Locations & Transport</span>
+                  <span className="text-[11px] text-[#8C938E]">Step 1: Locations, Duration & Style</span>
                 </div>
               </div>
 
@@ -464,7 +550,7 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
                           setStartLocation(e.target.value);
                           setActivePlan(null);
                         }}
-                        placeholder="e.g. Rishikesh, Delhi, Mumbai..."
+                        placeholder="e.g. Delhi, Mumbai, Bengaluru..."
                         required
                         className="w-full pl-10 pr-10 py-2.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] text-sm font-medium text-[#202422] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30 focus:border-[#183B32]"
                       />
@@ -493,7 +579,7 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
                           setDestination(e.target.value);
                           setActivePlan(null);
                         }}
-                        placeholder="e.g. Shimla, Manali, Jaipur..."
+                        placeholder="e.g. Goa, Jaipur, Manali, Kerala..."
                         required
                         className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] text-sm font-medium text-[#202422] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30 focus:border-[#183B32]"
                       />
@@ -501,7 +587,7 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
                   </div>
                 </div>
 
-                {/* 2. CHOOSE TRANSPORTATION METHOD (5 options) */}
+                {/* 2. CHOOSE TRANSPORTATION METHOD */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-bold text-[#183B32] uppercase tracking-wider">
@@ -566,7 +652,7 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
                         <span className="font-bold text-[#183B32] mt-0.5 block">{displayDuration}</span>
                       </div>
                       <div className="p-2 rounded-xl bg-[#FFFFFF] border border-[#EAE3D6]">
-                        <span className="text-[9px] text-[#8C938E] uppercase font-bold block">Est. Cost</span>
+                        <span className="text-[9px] text-[#8C938E] uppercase font-bold block">Est. Transit Cost</span>
                         <span className="font-bold text-[#183B32] mt-0.5 block text-[10px]">
                           {currentSelectedTransport.estimatedCostRange.split('(')[0]}
                         </span>
@@ -579,55 +665,78 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
                   </div>
                 )}
 
-                {/* 4. DURATION & TRAVELERS */}
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider mb-1.5">
-                      Duration
+                {/* 4. DURATION & TRAVELERS (Responsive Grid - No UI Overlap) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
+                      Trip Duration
                     </label>
                     <div className="relative">
-                      <Calendar className="w-4 h-4 text-[#8C938E] absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        value={dates}
-                        onChange={(e) => setDates(e.target.value)}
-                        placeholder="e.g. 3 Days"
-                        className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#FAF7F2] border border-[#E2DACB] text-xs text-[#202422] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30"
-                      />
+                      <Calendar className="w-4 h-4 text-[#8C938E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <select
+                        value={days}
+                        onChange={(e) => setDays(Number(e.target.value))}
+                        className="w-full pl-10 pr-3 py-2.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] text-sm font-medium text-[#202422] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30 cursor-pointer"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7, 10, 14, 21].map((d) => (
+                          <option key={d} value={d}>
+                            {d} {d === 1 ? 'Day (Day Trip)' : 'Days'}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider mb-1.5">
-                      Travelers
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
+                      Number of Travellers
                     </label>
                     <div className="relative">
-                      <Users className="w-4 h-4 text-[#8C938E] absolute left-3 top-1/2 -translate-y-1/2" />
+                      <Users className="w-4 h-4 text-[#8C938E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <select
                         value={travelers}
                         onChange={(e) => setTravelers(Number(e.target.value))}
-                        className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#FAF7F2] border border-[#E2DACB] text-xs text-[#202422] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30"
+                        className="w-full pl-10 pr-3 py-2.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] text-sm font-medium text-[#202422] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30 cursor-pointer"
                       >
-                        <option value={1}>1 Solo</option>
+                        <option value={1}>1 Solo Explorer</option>
                         <option value={2}>2 Travellers</option>
                         <option value={3}>3 Travellers</option>
                         <option value={4}>4 Travellers</option>
+                        <option value={5}>5 Travellers</option>
                         <option value={6}>6+ Group</option>
                       </select>
                     </div>
                   </div>
                 </div>
 
-                {/* 5. BUDGET PREFERENCE */}
-                <div>
-                  <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider mb-1.5">
-                    Budget Tier
+                {/* 5. TRAVEL DATES (Optional) */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
+                    Travel Dates (Optional)
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="relative">
+                    <Calendar className="w-4 h-4 text-[#8C938E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={datesText}
+                      onChange={(e) => setDatesText(e.target.value)}
+                      placeholder="e.g. Next weekend, Nov 12 - 16..."
+                      className="w-full pl-10 pr-3 py-2.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] text-sm font-medium text-[#202422] placeholder:text-[#8C938E] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30"
+                    />
+                  </div>
+                </div>
+
+                {/* 6. BUDGET PREFERENCE (Budget, Balanced, Luxury, Custom) */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
+                    Budget Preference
+                  </label>
+                  <div className="grid grid-cols-4 gap-1.5">
                     {[
-                      { id: 'budget', label: 'Budget', desc: 'Hostels & Local' },
-                      { id: 'moderate', label: 'Balanced', desc: 'Boutique Stays' },
-                      { id: 'luxury', label: 'Luxury', desc: 'Heritage 5-Star' },
+                      { id: 'budget', label: 'Budget' },
+                      { id: 'moderate', label: 'Balanced' },
+                      { id: 'luxury', label: 'Luxury' },
+                      { id: 'custom', label: 'Custom' },
                     ].map((b) => {
                       const isSel = budgetTier === b.id;
                       return (
@@ -635,26 +744,45 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
                           key={b.id}
                           type="button"
                           onClick={() => setBudgetTier(b.id as any)}
-                          className={`p-2 rounded-xl text-center border transition-all cursor-pointer ${
+                          className={`py-2 px-1 text-center rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                             isSel
                               ? 'bg-[#183B32] text-[#FAF7F2] border-[#183B32] shadow-2xs'
                               : 'bg-[#FAF7F2] text-[#57605B] border-[#E2DACB] hover:bg-[#EFE9DE]'
                           }`}
                         >
-                          <span className="block text-xs font-bold">{b.label}</span>
-                          <span className={`block text-[9px] ${isSel ? 'text-[#FAF7F2]/80' : 'text-[#8C938E]'}`}>
-                            {b.desc}
-                          </span>
+                          {b.label}
                         </button>
                       );
                     })}
                   </div>
+
+                  {budgetTier === 'custom' && (
+                    <div className="p-3.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] space-y-2 animate-fade-in">
+                      <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
+                        Enter Your Total Target Budget (₹)
+                      </label>
+                      <div className="relative">
+                        <span className="text-sm font-bold text-[#183B32] absolute left-3.5 top-1/2 -translate-y-1/2">
+                          ₹
+                        </span>
+                        <input
+                          type="number"
+                          min={500}
+                          step={500}
+                          value={customBudgetInput}
+                          onChange={(e) => setCustomBudgetInput(e.target.value)}
+                          placeholder="e.g. 25000"
+                          className="w-full pl-8 pr-3 py-2 rounded-xl bg-[#FFFFFF] border border-[#E2DACB] text-sm font-bold text-[#183B32] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* 6. INTERESTS */}
-                <div>
-                  <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider mb-1.5">
-                    Travel Interests
+                {/* 7. INTERESTS */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
+                    Travel Interests & Activities
                   </label>
                   <div className="flex flex-wrap gap-1.5">
                     {availableInterests.map((interest) => {
@@ -664,9 +792,9 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
                           key={interest}
                           type="button"
                           onClick={() => toggleInterest(interest)}
-                          className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${
                             isSelected
-                              ? 'bg-[#E0B466] text-[#183B32] font-bold shadow-2xs'
+                              ? 'bg-[#183B32] text-[#FAF7F2] font-bold shadow-2xs'
                               : 'bg-[#FAF7F2] text-[#57605B] border border-[#E2DACB] hover:bg-[#EFE9DE]'
                           }`}
                         >
@@ -682,13 +810,13 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
                 <div className="pt-2">
                   <button
                     type="submit"
-                    disabled={isGenerating}
-                    className="w-full py-4 rounded-2xl bg-[#183B32] hover:bg-[#245246] text-[#FAF7F2] text-sm font-bold shadow-md flex items-center justify-center gap-2 transition-all hover:scale-101 active:scale-98 cursor-pointer"
+                    disabled={isGenerating || !startLocation.trim() || !destination.trim()}
+                    className="w-full py-4 rounded-2xl bg-[#183B32] hover:bg-[#245246] disabled:opacity-50 text-[#FAF7F2] text-sm font-bold shadow-md flex items-center justify-center gap-2 transition-all hover:scale-101 active:scale-98 cursor-pointer"
                   >
                     {isGenerating ? (
                       <>
                         <div className="w-4 h-4 border-2 border-[#FAF7F2] border-t-transparent rounded-full animate-spin" />
-                        <span>Crafting Itinerary for {destination}...</span>
+                        <span>Crafting Itinerary for {destination || 'your trip'}...</span>
                       </>
                     ) : (
                       <>
@@ -708,18 +836,18 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-[#C8963E]" />
                   <h3 className="font-serif font-bold text-sm text-[#183B32]">
-                    Refine with Gemini AI
+                    Refine with AI Assistant
                   </h3>
                 </div>
                 <p className="text-xs text-[#57605B]">
-                  Ask Gemini to adjust stops, suggest hidden food spots, or customize timing in {destination}:
+                  Adjust stops, request dietary recommendations, or re-sequence days in {destination}:
                 </p>
                 <form onSubmit={handleModifyPlan} className="flex gap-2">
                   <input
                     type="text"
                     value={modificationPrompt}
                     onChange={(e) => setModificationPrompt(e.target.value)}
-                    placeholder={`e.g. Include a scenic sunset stop in ${destination}...`}
+                    placeholder={`e.g. Add quiet sunrise viewpoints in ${destination}...`}
                     className="flex-1 px-3.5 py-2 rounded-xl bg-[#FAF7F2] border border-[#E2DACB] text-xs text-[#202422] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30"
                   />
                   <button
@@ -740,7 +868,7 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
             )}
           </div>
 
-          {/* RIGHT COLUMN: CLEAN ROUTE VIEW & ITINERARY (7 cols) */}
+          {/* RIGHT COLUMN: ROUTE VIEW, DYNAMIC WEATHER & ITINERARY (7 cols) */}
           <div className="lg:col-span-7 space-y-6">
             
             {/* 1. YOUR TRIP ROUTE SUMMARY CARD */}
@@ -748,24 +876,16 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#F0EBE0]">
                 <div>
                   <span className="text-[10px] font-bold text-[#C8963E] uppercase tracking-wider">
-                    Your Trip
+                    Your Journey
                   </span>
                   <h2 className="font-serif font-bold text-2xl sm:text-3xl text-[#183B32] mt-0.5">
-                    {startLocation} → {destination}
+                    {startLocation || 'Origin'} → {destination || 'Destination'}
                   </h2>
                 </div>
 
-                {/* Group Trip CTA */}
-                <button
-                  onClick={() => {
-                    if (onStartGroupTrip) onStartGroupTrip(destination);
-                    onNavigate('group-trips');
-                  }}
-                  className="px-4 py-2 rounded-full bg-[#FAF7F2] hover:bg-[#EFE9DE] border border-[#E2DACB] text-xs font-bold text-[#183B32] flex items-center gap-1.5 transition-colors cursor-pointer self-start sm:self-auto"
-                >
-                  <Users className="w-3.5 h-3.5 text-[#D96E37]" />
-                  <span>Split Expenses</span>
-                </button>
+                <div className="px-3.5 py-1.5 rounded-full bg-[#FAF7F2] border border-[#E2DACB] text-xs font-bold text-[#183B32] self-start sm:self-auto">
+                  {days} {days === 1 ? 'Day' : 'Days'} • {travelers} {travelers === 1 ? 'Traveler' : 'Travelers'}
+                </div>
               </div>
 
               {/* High Level Metrics Cards */}
@@ -807,7 +927,95 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
               )}
             </div>
 
-            {/* 2. Google / Leaflet Route Map (Strictly showing Searched Route) */}
+            {/* 2. DYNAMIC WEATHER SECTION (Multi-Day Forecast for Destination & Duration) */}
+            {destination.trim() && (
+              <div className="bg-[#FFFFFF] p-6 rounded-3xl border border-[#E5DFD3] shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#F0EBE0]">
+                  <div className="flex items-center gap-2">
+                    <CloudSun className="w-5 h-5 text-[#C8963E]" />
+                    <div>
+                      <h3 className="font-serif font-bold text-base text-[#183B32]">
+                        Weather & Forecast for {destination}
+                      </h3>
+                      <span className="text-[11px] text-[#8C938E]">
+                        Live conditions and {days}-day forecast for your itinerary
+                      </span>
+                    </div>
+                  </div>
+                  {weatherData && (
+                    <span className="text-xs font-bold text-[#183B32] px-3 py-1 bg-[#FAF7F2] rounded-full border border-[#E2DACB] self-start sm:self-auto">
+                      Current: {weatherData.temperatureC}°C ({weatherData.condition})
+                    </span>
+                  )}
+                </div>
+
+                {isFetchingWeather ? (
+                  <div className="py-6 text-center text-xs text-[#57605B] flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-[#183B32] border-t-transparent rounded-full animate-spin" />
+                    <span>Loading forecast for {destination}...</span>
+                  </div>
+                ) : weatherData && weatherData.dailyForecast && weatherData.dailyForecast.length > 0 ? (
+                  <div className="space-y-3">
+                    {/* Current snapshot banner */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#F0F7F4] border border-[#CDE5DC] text-xs">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl">
+                          {getWeatherEmoji(weatherData.weatherCode, weatherData.isDay)}
+                        </span>
+                        <div>
+                          <span className="font-bold text-[#183B32] block">
+                            {weatherData.location.split(',')[0]} • {weatherData.condition}
+                          </span>
+                          <span className="text-[11px] text-[#57605B]">
+                            Feels like {weatherData.feelsLikeC}°C • Humidity {weatherData.humidity}% • Wind {weatherData.windKph} km/h
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xl font-bold font-serif text-[#183B32]">
+                          {weatherData.temperatureC}°C
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Multi-day forecast cards */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 pt-1">
+                      {weatherData.dailyForecast.map((day, idx) => (
+                        <div
+                          key={day.date}
+                          className="p-3 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6] text-center space-y-1"
+                        >
+                          <span className="text-[11px] font-bold text-[#183B32] block">
+                            {day.dayName} {idx === 0 ? '(Day 1)' : idx + 1 <= days ? `(Day ${idx + 1})` : ''}
+                          </span>
+                          <span className="text-2xl block my-0.5">
+                            {getWeatherEmoji(day.weatherCode, true)}
+                          </span>
+                          <span className="text-[10px] text-[#57605B] block truncate font-medium">
+                            {day.condition}
+                          </span>
+                          <div className="text-xs font-bold text-[#183B32] pt-0.5">
+                            <span>{day.maxTemp}°</span>
+                            <span className="text-[#8C938E] text-[10px] font-normal ml-1">/ {day.minTemp}°</span>
+                          </div>
+                          {day.rainProbability > 0 && (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] text-[#1976D2] font-semibold">
+                              <Droplets className="w-2.5 h-2.5" /> {day.rainProbability}%
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : weatherError ? (
+                  <p className="text-xs text-[#8C938E] italic text-center py-2">
+                    {weatherError}
+                  </p>
+                ) : null}
+              </div>
+            )}
+
+            {/* 3. Interactive Route Map */}
             <div className="h-[400px] rounded-3xl overflow-hidden shadow-xs border border-[#E5DFD3]">
               <TourismMap
                 startLocation={startLocation}
@@ -824,7 +1032,7 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
               />
             </div>
 
-            {/* 3. CONDITIONAL ITINERARY SECTION: BEFORE vs. AFTER GENERATION */}
+            {/* 4. CONDITIONAL ITINERARY SECTION */}
             {!activePlan ? (
               /* Clean Pre-Generation Banner with "Generate My Itinerary" CTA */
               <div className="bg-[#FFFFFF] p-8 sm:p-10 rounded-3xl border border-[#E5DFD3] text-center shadow-xs space-y-4">
@@ -833,27 +1041,27 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
                 </div>
                 <div>
                   <h3 className="font-serif font-bold text-xl sm:text-2xl text-[#183B32]">
-                    Ready to Explore {destination}?
+                    Ready to Explore {destination || 'Your Destination'}?
                   </h3>
                   <p className="text-xs sm:text-sm text-[#57605B] mt-1.5 max-w-md mx-auto leading-relaxed">
-                    Generate your custom day-by-day itinerary with top attractions in {destination}, authentic regional food, accommodation ideas, and travel budgets.
+                    Generate your custom day-by-day itinerary with attractions, authentic food, accommodation ideas, and travel budgets in INR.
                   </p>
                 </div>
                 <div>
                   <button
                     onClick={() => handleGenerateTrip()}
-                    disabled={isGenerating}
-                    className="px-8 py-3.5 rounded-2xl bg-[#183B32] hover:bg-[#245246] text-[#FAF7F2] text-sm font-bold shadow-md inline-flex items-center gap-2.5 transition-all hover:scale-102 active:scale-98 cursor-pointer"
+                    disabled={isGenerating || !startLocation.trim() || !destination.trim()}
+                    className="px-8 py-3.5 rounded-2xl bg-[#183B32] hover:bg-[#245246] disabled:opacity-50 text-[#FAF7F2] text-sm font-bold shadow-md inline-flex items-center gap-2.5 transition-all hover:scale-102 active:scale-98 cursor-pointer"
                   >
                     {isGenerating ? (
                       <>
                         <div className="w-4 h-4 border-2 border-[#FAF7F2] border-t-transparent rounded-full animate-spin" />
-                        <span>Crafting Itinerary for {destination}...</span>
+                        <span>Crafting Itinerary...</span>
                       </>
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4 text-[#E0B466]" />
-                        <span>Generate My Itinerary for {destination}</span>
+                        <span>Generate My Itinerary</span>
                         <ArrowRight className="w-4 h-4" />
                       </>
                     )}
@@ -1004,13 +1212,13 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
                   </div>
                 )}
 
-                {/* D. Budget Breakdown & Stay Recommendations */}
+                {/* D. Destination-Aware Budget Breakdown & Stays (₹ INR) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Budget */}
+                  {/* Realistic Budget */}
                   <div className="bg-[#FFFFFF] p-6 rounded-3xl border border-[#E5DFD3] shadow-xs space-y-3">
                     <h4 className="font-serif font-bold text-base text-[#183B32] flex items-center gap-1.5">
-                      <DollarSign className="w-4 h-4 text-[#C8963E]" />
-                      Estimated Budget ({travelers} travelers)
+                      <IndianRupee className="w-4 h-4 text-[#C8963E]" />
+                      Estimated Budget ({travelers} {travelers === 1 ? 'traveler' : 'travelers'} • {days} {days === 1 ? 'day' : 'days'})
                     </h4>
                     <div className="space-y-2 text-xs text-[#57605B] pt-1">
                       <div className="flex justify-between">
@@ -1031,7 +1239,7 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
                       </div>
                       <div className="pt-2 border-t border-[#F0EBE0] flex justify-between font-bold text-sm text-[#183B32]">
                         <span>Total Estimated:</span>
-                        <span>₹{activePlan.estimatedTotalBudget.total.toLocaleString()}</span>
+                        <span className="text-base text-[#183B32]">₹{activePlan.estimatedTotalBudget.total.toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
@@ -1040,7 +1248,7 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
                   <div className="bg-[#FFFFFF] p-6 rounded-3xl border border-[#E5DFD3] shadow-xs space-y-3">
                     <h4 className="font-serif font-bold text-base text-[#183B32] flex items-center gap-1.5">
                       <Bed className="w-4 h-4 text-[#183B32]" />
-                      Stay Suggestions
+                      Stay Suggestions in {destination}
                     </h4>
                     <div className="space-y-2 text-xs text-[#57605B]">
                       {activePlan.staySuggestions.map((stay, idx) => (

@@ -30,21 +30,21 @@ export const AiTravelAssistant: React.FC<AiTravelAssistantProps> = ({
       id: 'welcome',
       role: 'assistant',
       content: initialDestination
-        ? 'Welcome! I’m Aura, your travel companion. 🌿 Tell me where you’re going, what you’d love to experience, or what you’re planning, and I’ll help you make the most of your trip.'
-        : `Welcome! I'm Aura, your peaceful AI travel guide. Where are you dreaming of going? Tell me how many days you have, your travel style, or ask for the easiest route for any destination.`,
+        ? `Hello! I’m Aura, your AI travel companion for ${initialDestination}. Tell me what you’d love to experience or what you’re planning, and I’ll help you make the most of your trip.`
+        : `Hello! I’m Aura, your AI travel companion. Tell me where you’re going or what you’re looking for, and I’ll help you plan your trip.`,
       timestamp: Date.now(),
       suggestedPrompts: initialDestination
         ? [
-            `I have 3 days in ${initialDestination} and love historic places & local food.`,
-            `What are the top 5 must-visit tourist spots in ${initialDestination}?`,
+            `Plan a 3-day itinerary for ${initialDestination}`,
+            `What are the top attractions in ${initialDestination}?`,
             `What is a realistic daily budget for ${initialDestination}?`,
-            `What are safety and packing tips for ${initialDestination}?`,
+            `Tips for packing & safety in ${initialDestination}`,
           ]
         : [
-            'I have 3 days in Jaipur and like historical forts and street food.',
-            'Suggest a serene 4-day itinerary for Kyoto during spring.',
-            'What is the easiest route to explore the Amalfi Coast without stress?',
-            'What are top peaceful nature destinations in the Swiss Alps?',
+            'Plan a 3-day trip',
+            'Suggest budget-friendly destinations',
+            'Find top attractions',
+            'Tips for packing & travel',
           ],
     },
   ]);

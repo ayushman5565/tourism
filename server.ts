@@ -253,11 +253,14 @@ app.get("/api/maps-config", (_req, res) => {
   });
 });
 
-// Current weather for the selected destination. Coordinates are resolved using
-// the same geocoding flow that powers routes, then sent to Open-Meteo's forecast API.
+// Current weather and multi-day forecast for the selected destination.
+// Coordinates are resolved using geocoding, then sent to Open-Meteo's forecast API.
 app.get("/api/weather", async (req, res) => {
   try {
     const destination = (req.query.destination as string || "").trim();
+    const daysParam = parseInt(req.query.days as string || "3", 10);
+    const forecastDays = Math.min(14, Math.max(1, isNaN(daysParam) ? 3 : daysParam));
+
     if (!destination) {
       return res.status(400).json({ error: "Destination is required" });
     }
@@ -272,6 +275,8 @@ app.get("/api/weather", async (req, res) => {
       latitude: String(location.lat),
       longitude: String(location.lng),
       current: "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day",
+      daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max",
+      forecast_days: String(forecastDays),
       timezone: "auto",
     }).toString();
 
@@ -286,6 +291,34 @@ app.get("/api/weather", async (req, res) => {
       throw new Error("Weather provider returned an incomplete response");
     }
 
+    const daily = weatherData.daily || {};
+    const dailyForecast: Array<{
+      date: string;
+      dayName: string;
+      maxTemp: number;
+      minTemp: number;
+      weatherCode: number;
+      condition: string;
+      rainProbability: number;
+    }> = [];
+
+    if (Array.isArray(daily.time)) {
+      daily.time.forEach((dateStr: string, idx: number) => {
+        const dateObj = new Date(dateStr);
+        const dayName = idx === 0 ? "Today" : idx === 1 ? "Tomorrow" : dateObj.toLocaleDateString("en-US", { weekday: "short" });
+        const code = daily.weather_code?.[idx] ?? 0;
+        dailyForecast.push({
+          date: dateStr,
+          dayName,
+          maxTemp: Math.round(daily.temperature_2m_max?.[idx] ?? current.temperature_2m),
+          minTemp: Math.round(daily.temperature_2m_min?.[idx] ?? current.temperature_2m - 5),
+          weatherCode: code,
+          condition: describeWeatherCode(code),
+          rainProbability: Math.round(daily.precipitation_probability_max?.[idx] ?? 0),
+        });
+      });
+    }
+
     res.json({
       success: true,
       location: location.displayName,
@@ -297,6 +330,8 @@ app.get("/api/weather", async (req, res) => {
       weatherCode: current.weather_code,
       condition: describeWeatherCode(current.weather_code),
       isDay: Boolean(current.is_day),
+      forecastDaysRequested: forecastDays,
+      forecast: dailyForecast,
     });
   } catch (err: any) {
     console.warn("Weather lookup failed:", err);

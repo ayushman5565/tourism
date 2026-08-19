@@ -21,7 +21,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'planner', label: 'Trip Planner', icon: <Layers className="w-4 h-4" /> },
     { id: 'assistant', label: 'AI Assistant', icon: <Sparkles className="w-4 h-4" /> },
     { id: 'gallery', label: 'Smart Gallery', icon: <Camera className="w-4 h-4" /> },
-    { id: 'group-trips', label: 'Group Trips', icon: <Users className="w-4 h-4" /> },
     { id: 'features', label: 'Features', icon: <BookOpen className="w-4 h-4" /> },
     { id: 'about', label: 'About', icon: <Info className="w-4 h-4" /> },
   ];

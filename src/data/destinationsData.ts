@@ -787,6 +787,125 @@ export const SAMPLE_DESTINATIONS: DestinationDetail[] = [
   },
 ];
 
+// Helper to calculate realistic, destination-aware and traveler-scaled budget breakdown in INR (₹)
+export function calculateDestinationBudgetBreakdown({
+  destination,
+  travelers,
+  days,
+  budgetTier = 'moderate',
+  customBudget,
+}: {
+  destination: string;
+  travelers: number;
+  days: number;
+  budgetTier?: 'budget' | 'moderate' | 'luxury' | 'custom';
+  customBudget?: number;
+}) {
+  const numTravelers = Math.max(1, travelers || 1);
+  const numDays = Math.max(1, days || 1);
+  const numNights = Math.max(1, numDays > 1 ? numDays - 1 : 1);
+  const roomsNeeded = Math.max(1, Math.ceil(numTravelers / 2));
+
+  // Destination cost multiplier based on regional cost factors
+  const dest = (destination || '').toLowerCase();
+  let destMultiplier = 1.0;
+  if (
+    dest.includes('goa') ||
+    dest.includes('mumbai') ||
+    dest.includes('dubai') ||
+    dest.includes('kyoto') ||
+    dest.includes('bali') ||
+    dest.includes('paris') ||
+    dest.includes('london') ||
+    dest.includes('zurich') ||
+    dest.includes('amalfi')
+  ) {
+    destMultiplier = 1.35;
+  } else if (
+    dest.includes('shimla') ||
+    dest.includes('manali') ||
+    dest.includes('rishikesh') ||
+    dest.includes('jaipur') ||
+    dest.includes('udaipur') ||
+    dest.includes('srinagar') ||
+    dest.includes('ooty') ||
+    dest.includes('munnar') ||
+    dest.includes('leh') ||
+    dest.includes('ladakh') ||
+    dest.includes('darjeeling')
+  ) {
+    destMultiplier = 1.15;
+  } else if (
+    dest.includes('delhi') ||
+    dest.includes('bangalore') ||
+    dest.includes('bengaluru') ||
+    dest.includes('hyderabad') ||
+    dest.includes('chennai') ||
+    dest.includes('kolkata')
+  ) {
+    destMultiplier = 1.2;
+  } else if (dest.length > 0) {
+    destMultiplier = 1.0;
+  }
+
+  // Cost profiles per day / per room / per person in INR (₹)
+  let roomCostPerNight = 0;
+  let foodPerPersonPerDay = 0;
+  let transportPerPersonPerDay = 0;
+  let baseIntercityTransit = 0;
+  let activitiesPerPersonPerDay = 0;
+  let otherPerPersonPerDay = 0;
+
+  if (budgetTier === 'budget') {
+    // Budget: Hostels/homestays, local eateries/street food, public transit & shared cabs, standard/free sights
+    roomCostPerNight = Math.round(1400 * destMultiplier);
+    foodPerPersonPerDay = Math.round(500 * destMultiplier);
+    transportPerPersonPerDay = Math.round(300 * destMultiplier);
+    baseIntercityTransit = Math.round(600 * numTravelers);
+    activitiesPerPersonPerDay = Math.round(250 * destMultiplier);
+    otherPerPersonPerDay = Math.round(150 * destMultiplier);
+  } else if (budgetTier === 'luxury') {
+    // Luxury: 4-5 Star heritage resorts, gourmet & fine dining, private chauffeur/cab/flights, VIP activities
+    roomCostPerNight = Math.round(13500 * destMultiplier);
+    foodPerPersonPerDay = Math.round(3800 * destMultiplier);
+    transportPerPersonPerDay = Math.round(2200 * destMultiplier);
+    baseIntercityTransit = Math.round(4500 * numTravelers);
+    activitiesPerPersonPerDay = Math.round(2400 * destMultiplier);
+    otherPerPersonPerDay = Math.round(1500 * destMultiplier);
+  } else {
+    // Balanced (Moderate) or Custom Baseline: 3-Star boutique stays, casual dining, AC cabs, popular tours
+    roomCostPerNight = Math.round(4200 * destMultiplier);
+    foodPerPersonPerDay = Math.round(1300 * destMultiplier);
+    transportPerPersonPerDay = Math.round(800 * destMultiplier);
+    baseIntercityTransit = Math.round(1800 * numTravelers);
+    activitiesPerPersonPerDay = Math.round(750 * destMultiplier);
+    otherPerPersonPerDay = Math.round(450 * destMultiplier);
+  }
+
+  const accommodation = Math.round(roomCostPerNight * roomsNeeded * numNights);
+  const food = Math.round(foodPerPersonPerDay * numTravelers * numDays);
+  const transportation = Math.round(baseIntercityTransit + transportPerPersonPerDay * numTravelers * numDays);
+  const activities = Math.round(activitiesPerPersonPerDay * numTravelers * numDays);
+  const other = Math.round(otherPerPersonPerDay * numTravelers * numDays);
+
+  const total = accommodation + food + transportation + activities + other;
+  const costPerPerson = Math.round(total / numTravelers);
+  const userBudget = customBudget !== undefined && customBudget > 0 ? customBudget : total;
+  const remainingBudget = userBudget - total;
+
+  return {
+    accommodation,
+    food,
+    transportation,
+    activities,
+    miscellaneous: other,
+    total,
+    costPerPerson,
+    remainingBudget,
+    currency: '₹',
+  };
+}
+
 // Helper to generate a complete logical trip plan from inputs dynamically
 export function generateCuratedTripPlan(
   destinationName: string,
@@ -796,8 +915,22 @@ export function generateCuratedTripPlan(
   interests: string[],
   budgetTier: 'budget' | 'moderate' | 'luxury' = 'moderate'
 ): TripPlanResult {
-  const destClean = destinationName.trim();
+  const destClean = destinationName.trim() || 'Your Destination';
   const destLower = destClean.toLowerCase();
+
+  // Extract number of days from dates string or default to 3
+  const daysMatch = (dates || '').match(/(\d+)/);
+  const parsedDays = daysMatch ? parseInt(daysMatch[1], 10) : 3;
+  const numDays = Math.max(1, parsedDays || 3);
+  const numTravelers = Math.max(1, travelers || 2);
+
+  // Calculate dynamic realistic budget breakdown
+  const budgetCalc = calculateDestinationBudgetBreakdown({
+    destination: destClean,
+    travelers: numTravelers,
+    days: numDays,
+    budgetTier,
+  });
 
   // Check if we match a known destination explicitly
   const matched = SAMPLE_DESTINATIONS.find(
@@ -827,20 +960,12 @@ export function generateCuratedTripPlan(
     const totalKm = waypoints.reduce((acc, wp) => acc + (wp.distanceFromPreviousKm || 0), 0);
     const totalDriveHours = parseFloat((totalKm / 25).toFixed(1));
 
-    const perPersonPerDay = budgetTier === 'budget' ? 45 : budgetTier === 'moderate' ? 110 : 280;
-    const numDays = 3;
-    const stayCost = Math.round(perPersonPerDay * 0.45 * numDays * travelers);
-    const foodCost = Math.round(perPersonPerDay * 0.30 * numDays * travelers);
-    const transportCost = Math.round(perPersonPerDay * 0.15 * numDays * travelers);
-    const sightseeingCost = Math.round(perPersonPerDay * 0.10 * numDays * travelers);
-    const totalCost = stayCost + foodCost + transportCost + sightseeingCost;
-
     return {
       id: `trip-${Date.now()}`,
       destination: matched.name,
       startLocation: startLocation || 'Not specified',
-      dates: dates || '3 Days',
-      travelers: travelers || 2,
+      dates: dates || `${numDays} Days`,
+      travelers: numTravelers,
       interests: interests.length > 0 ? interests : ['Must-see Highlights', 'Peaceful Nature', 'Authentic Food'],
       budgetTier,
       totalDistanceKm: parseFloat(totalKm.toFixed(1)),
@@ -860,217 +985,92 @@ export function generateCuratedTripPlan(
         estimatedCostNight: s.priceRange,
       })),
       estimatedTotalBudget: {
-        stay: stayCost,
-        food: foodCost,
-        transport: transportCost,
-        sightseeing: sightseeingCost,
-        total: totalCost,
+        stay: budgetCalc.accommodation,
+        food: budgetCalc.food,
+        transport: budgetCalc.transportation,
+        sightseeing: budgetCalc.activities,
+        total: budgetCalc.total,
         currency: '₹ INR',
       },
       practicalAdvice: matched.practicalTips.map((t) => `${t.title}: ${t.tip}`),
     };
   }
 
-  // If destination is not in sample data (e.g. Shimla, Rishikesh, Manali, etc.),
-  // generate authentic dynamic data matching the actual searched destination
-  const isShimla = destLower.includes('shimla');
-  const isRishikesh = destLower.includes('rishikesh');
+  // If destination is not in sample data, generate authentic dynamic data matching the actual searched destination
+  const dynamicWaypoints: RouteWaypoint[] = [
+    {
+      id: `wp-${destClean.toLowerCase().replace(/[^a-z0-9]/g, '')}-1`,
+      order: 1,
+      name: `${destClean} City Center & Main Promenade`,
+      lat: 28.6139,
+      lng: 77.2090,
+      category: 'Culture & Landmark',
+      recommendedDuration: '2 hours',
+      distanceFromPreviousKm: 2.5,
+      travelTimeFromPreviousMin: 12,
+      description: `Explore the vibrant heart and architectural highlights of ${destClean}.`,
+      recommendedTime: 'Morning (9:00 AM)',
+    },
+    {
+      id: `wp-${destClean.toLowerCase().replace(/[^a-z0-9]/g, '')}-2`,
+      order: 2,
+      name: `${destClean} Heritage & Scenic Viewpoint`,
+      lat: 28.6189,
+      lng: 77.2150,
+      category: 'Viewpoint & History',
+      recommendedDuration: '2 hours',
+      distanceFromPreviousKm: 3.8,
+      travelTimeFromPreviousMin: 18,
+      description: `Panoramic viewpoints and iconic cultural landmarks showcasing ${destClean}.`,
+      recommendedTime: 'Afternoon / Golden Hour',
+    },
+    {
+      id: `wp-${destClean.toLowerCase().replace(/[^a-z0-9]/g, '')}-3`,
+      order: 3,
+      name: `${destClean} Artisan Market & Cultural Quarter`,
+      lat: 28.6089,
+      lng: 77.2210,
+      category: 'Culture & Leisure',
+      recommendedDuration: '1.5 hours',
+      distanceFromPreviousKm: 2.0,
+      travelTimeFromPreviousMin: 10,
+      description: `Experience authentic local culture, handicraft stalls, and evening dining in ${destClean}.`,
+      recommendedTime: 'Evening',
+    },
+  ];
 
-  let dynamicWaypoints: RouteWaypoint[] = [];
-  let dynamicDays: DayItinerary[] = [];
-  let dynamicFood: { name: string; type: string; neighborhood: string; mustTry: string }[] = [];
-  let dynamicStays: { neighborhood: string; vibe: string; estimatedCostNight: string }[] = [];
-
-  if (isShimla) {
-    dynamicWaypoints = [
-      {
-        id: 'wp-ridge',
-        order: 1,
-        name: 'The Ridge & Mall Road',
-        lat: 31.1048,
-        lng: 77.1734,
-        category: 'Promenade & Viewpoint',
-        recommendedDuration: '2 - 3 hours',
-        distanceFromPreviousKm: 2.0,
-        travelTimeFromPreviousMin: 10,
-        description: 'Vibrant cultural hub overlooking snow-capped Himalayan peaks with heritage Tudor architecture.',
-        recommendedTime: 'Morning / Golden Hour',
-      },
-      {
-        id: 'wp-jakhu',
-        order: 2,
-        name: 'Jakhu Temple & Hill',
-        lat: 31.1013,
-        lng: 77.1856,
-        category: 'Heritage & Viewpoint',
-        recommendedDuration: '1.5 - 2 hours',
-        distanceFromPreviousKm: 3.5,
-        travelTimeFromPreviousMin: 15,
-        description: 'Highest peak in Shimla featuring the iconic 108-foot Lord Hanuman statue and panoramic valley vistas.',
-        recommendedTime: 'Morning',
-      },
-      {
-        id: 'wp-viceregal',
-        order: 3,
-        name: 'Viceregal Lodge & Botanical Gardens',
-        lat: 31.1039,
-        lng: 77.1408,
-        category: 'Heritage Architecture',
-        recommendedDuration: '2 hours',
-        distanceFromPreviousKm: 4.2,
-        travelTimeFromPreviousMin: 20,
-        description: 'Stately Jacobethan-style heritage building on Observatory Hill with manicured lawns.',
-        recommendedTime: 'Midday / Afternoon',
-      },
-      {
-        id: 'wp-kufri',
-        order: 4,
-        name: 'Kufri Alpine Viewpoint',
-        lat: 31.0979,
-        lng: 77.2678,
-        category: 'Nature & Adventure',
-        recommendedDuration: '3 hours',
-        distanceFromPreviousKm: 14.0,
-        travelTimeFromPreviousMin: 40,
-        description: 'Scenic high-altitude hill resort surrounded by pine forests, cedar groves, and Himalayan views.',
-        recommendedTime: 'Afternoon',
-      },
-    ];
-
-    dynamicDays = [
-      {
-        dayNumber: 1,
-        theme: 'Colonial Heritage & The Ridge Promenade',
-        morning: 'Stroll along The Ridge and visit the neo-Gothic Christ Church in crisp morning mountain air.',
-        afternoon: 'Explore the historic Gaiety Theatre and browse local handicraft shops along Mall Road.',
-        evening: 'Enjoy sunset panoramic views from Scandal Point with hot steamed momos and mountain tea.',
-        foodSpot: 'Wake & Bake Cafe for wood-fired crepes and Himachali coffee.',
-        travelNote: 'Mall Road is a pedestrian-only zone; comfortable walking shoes are recommended.',
-      },
-      {
-        dayNumber: 2,
-        theme: 'High Altitude Panorama & Botanical Serenity',
-        morning: 'Take the Jakhu Ropeway cable car up to Jakhu Temple for 360-degree Himalayan views.',
-        afternoon: 'Tour the historic Viceregal Lodge (Indian Institute of Advanced Study) and its pine-shaded gardens.',
-        evening: 'Relax at Lakkar Bazaar for wooden artisan crafts and authentic local street food.',
-        foodSpot: 'Himachali Rasoi for authentic traditional Dham (Festive Thali with Madra and Khatta).',
-        travelNote: 'Book ropeway tickets or cab transfers in advance during peak season.',
-      },
-      {
-        dayNumber: 3,
-        theme: 'Pine Forests, Nature Walks & Scenic Escapes',
-        morning: 'Excursion to Kufri and Mahasu Peak for cedar forest walks and horse trails.',
-        afternoon: 'Visit peaceful Mashobra apple orchards and Craignano nature park.',
-        evening: 'Return to Shimla for a cozy campfire dinner with scenic valley lights.',
-        foodSpot: 'Cafe Simla Times for terrace views and oven-baked pizzas.',
-        travelNote: 'Carry a warm jacket as temperatures drop quickly after sunset.',
-      },
-    ];
-
-    dynamicFood = [
-      { name: 'Himachali Dham (Madra & Khatta)', type: 'Traditional Cuisine', neighborhood: 'Mall Road', mustTry: 'Slow-cooked chickpea curry in spiced yogurt gravy.' },
-      { name: 'Steamed Momos & Thukpa', type: 'Local Mountain Comfort', neighborhood: 'The Ridge', mustTry: 'Hot piping dumplings served with fiery garlic chili dip.' },
-      { name: 'Siddu with Ghee', type: 'Himachali Specialty', neighborhood: 'Lakkar Bazaar', mustTry: 'Steamed wheat dough pocket stuffed with spiced walnut/poppy paste.' },
-    ];
-
-    dynamicStays = [
-      { neighborhood: 'Mall Road / Ridge Area', vibe: 'Central, walkable to heritage spots, cafes, and shops', estimatedCostNight: '₹3,000 – ₹6,500 / night' },
-      { neighborhood: 'Mashobra / Chharabra', vibe: 'Peaceful pine forest retreat away from the crowds', estimatedCostNight: '₹4,500 – ₹9,000 / night' },
-      { neighborhood: 'Kandaghat / Shoghi', vibe: 'Tranquil valley hillside resorts with mountain vistas', estimatedCostNight: '₹2,500 – ₹5,000 / night' },
-    ];
-  } else {
-    // Clean dynamic template for any custom searched destination name
-    dynamicWaypoints = [
-      {
-        id: `wp-${destClean.toLowerCase()}-1`,
-        order: 1,
-        name: `${destClean} City Center & Main Promenade`,
-        lat: 28.6139,
-        lng: 77.2090,
-        category: 'Culture & Landmark',
-        recommendedDuration: '2 hours',
-        distanceFromPreviousKm: 2.5,
-        travelTimeFromPreviousMin: 12,
-        description: `Explore the vibrant heart and architectural highlights of ${destClean}.`,
-        recommendedTime: 'Morning (9:00 AM)',
-      },
-      {
-        id: `wp-${destClean.toLowerCase()}-2`,
-        order: 2,
-        name: `${destClean} Heritage & Scenic Viewpoint`,
-        lat: 28.6189,
-        lng: 77.2150,
-        category: 'Viewpoint & History',
-        recommendedDuration: '2 hours',
-        distanceFromPreviousKm: 3.8,
-        travelTimeFromPreviousMin: 18,
-        description: `Panoramic viewpoints and iconic cultural landmarks showcasing ${destClean}.`,
-        recommendedTime: 'Afternoon / Golden Hour',
-      },
-      {
-        id: `wp-${destClean.toLowerCase()}-3`,
-        order: 3,
-        name: `${destClean} Artisan Market & Night Promenade`,
-        lat: 28.6089,
-        lng: 77.2210,
-        category: 'Culture & Leisure',
-        recommendedDuration: '1.5 hours',
-        distanceFromPreviousKm: 2.0,
-        travelTimeFromPreviousMin: 10,
-        description: `Experience authentic local culture, handicraft stalls, and evening dining in ${destClean}.`,
-        recommendedTime: 'Evening',
-      },
-    ];
-
-    dynamicDays = [
-      {
-        dayNumber: 1,
-        theme: `Arrival & Highlights of ${destClean}`,
-        morning: `Arrive in ${destClean}, check in, and explore the central landmark district.`,
-        afternoon: `Visit premier cultural sites and local artisan markets in ${destClean}.`,
-        evening: `Sunset stroll and authentic local dining experience.`,
-        foodSpot: `Top-rated regional dining in ${destClean} Old Town.`,
-        travelNote: `Keep the first afternoon relaxed to settle in comfortably.`,
-      },
-      {
-        dayNumber: 2,
-        theme: `Scenic Exploration & Local Hidden Gems`,
-        morning: `Morning nature or architectural tour around ${destClean}.`,
-        afternoon: `Experience authentic regional crafts, tea houses, and local heritage.`,
-        evening: `Scenic viewpoint dinner overlooking ${destClean}.`,
-        foodSpot: `Famous local eatery known for signature regional dishes.`,
-        travelNote: `Group nearby attractions together to minimize transit time.`,
-      },
-    ];
-
-    dynamicFood = [
-      { name: `Local Specialty Dishes of ${destClean}`, type: 'Regional Cuisine', neighborhood: `${destClean} Central`, mustTry: `Authentic regional delicacies and freshly prepared culinary favorites.` },
-      { name: `Street Food & Artisan Delicacies`, type: 'Local Eatery', neighborhood: `${destClean} Market`, mustTry: `Traditional snacks and local tea/coffee blends.` },
-    ];
-
-    dynamicStays = [
-      { neighborhood: `${destClean} Central District`, vibe: 'Convenient, close to main sights and transit', estimatedCostNight: '₹2,500 – ₹5,500 / night' },
-      { neighborhood: `${destClean} Scenic Outskirts`, vibe: 'Tranquil retreat with nature or hill views', estimatedCostNight: '₹3,500 – ₹7,500 / night' },
-    ];
+  const dynamicDays: DayItinerary[] = [];
+  for (let d = 1; d <= numDays; d++) {
+    dynamicDays.push({
+      dayNumber: d,
+      theme: d === 1 ? `Arrival & Highlights of ${destClean}` : d === numDays ? `Artisan Walks & Panoramic Farewell` : `Scenic Exploration & Local Hidden Gems (Day ${d})`,
+      morning: d === 1 ? `Arrive in ${destClean}, check in, and explore the central landmark district.` : `Morning nature excursion and cultural sightseeing around ${destClean}.`,
+      afternoon: `Visit premier cultural sites and local artisan markets in ${destClean}.`,
+      evening: `Sunset stroll and authentic local dining experience in ${destClean}.`,
+      foodSpot: `Top-rated regional dining in ${destClean}.`,
+      travelNote: `Group nearby attractions together to minimize transit time.`,
+    });
   }
+
+  const dynamicFood = [
+    { name: `Local Specialty Dishes of ${destClean}`, type: 'Regional Cuisine', neighborhood: `${destClean} Central`, mustTry: `Authentic regional delicacies and freshly prepared culinary favorites.` },
+    { name: `Street Food & Artisan Delicacies`, type: 'Local Eatery', neighborhood: `${destClean} Market`, mustTry: `Traditional snacks and local tea/coffee blends.` },
+  ];
+
+  const dynamicStays = [
+    { neighborhood: `${destClean} Central District`, vibe: 'Convenient, close to main sights and transit', estimatedCostNight: budgetTier === 'budget' ? '₹1,200 – ₹2,000 / night' : budgetTier === 'luxury' ? '₹10,000 – ₹25,000 / night' : '₹3,500 – ₹6,500 / night' },
+    { neighborhood: `${destClean} Scenic Outskirts`, vibe: 'Tranquil retreat with scenic views', estimatedCostNight: budgetTier === 'budget' ? '₹1,500 – ₹2,500 / night' : budgetTier === 'luxury' ? '₹12,000 – ₹30,000 / night' : '₹4,000 – ₹8,000 / night' },
+  ];
 
   const totalKm = dynamicWaypoints.reduce((acc, wp) => acc + (wp.distanceFromPreviousKm || 0), 0);
   const totalDriveHours = parseFloat((totalKm / 25).toFixed(1));
-
-  const perPersonPerDay = budgetTier === 'budget' ? 40 : budgetTier === 'moderate' ? 85 : 200;
-  const numDays = dynamicDays.length || 3;
-  const stayCost = Math.round(perPersonPerDay * 0.45 * numDays * travelers);
-  const foodCost = Math.round(perPersonPerDay * 0.30 * numDays * travelers);
-  const transportCost = Math.round(perPersonPerDay * 0.15 * numDays * travelers);
-  const sightseeingCost = Math.round(perPersonPerDay * 0.10 * numDays * travelers);
-  const totalCost = stayCost + foodCost + transportCost + sightseeingCost;
 
   return {
     id: `trip-${Date.now()}`,
     destination: destClean,
     startLocation: startLocation || 'Origin',
     dates: dates || `${numDays} Days`,
-    travelers: travelers || 2,
+    travelers: numTravelers,
     interests: interests.length > 0 ? interests : ['Scenic Highlights', 'Local Food', 'Relaxation'],
     budgetTier,
     totalDistanceKm: parseFloat(totalKm.toFixed(1)),
@@ -1081,11 +1081,11 @@ export function generateCuratedTripPlan(
     foodRecommendations: dynamicFood,
     staySuggestions: dynamicStays,
     estimatedTotalBudget: {
-      stay: stayCost,
-      food: foodCost,
-      transport: transportCost,
-      sightseeing: sightseeingCost,
-      total: totalCost,
+      stay: budgetCalc.accommodation,
+      food: budgetCalc.food,
+      transport: budgetCalc.transportation,
+      sightseeing: budgetCalc.activities,
+      total: budgetCalc.total,
       currency: '₹ INR',
     },
     practicalAdvice: [

@@ -17,14 +17,6 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({ onNavigate }) => {
       page: 'gallery' as PageRoute,
     },
     {
-      icon: <Users className="w-6 h-6 text-[#C8963E]" />,
-      title: 'Group Trips & Budgets',
-      description:
-        'Manage travel companions, set individual spending budgets, log cumulative member expenses in real time, and view combined group totals.',
-      cta: 'Manage Expenses',
-      page: 'group-trips' as PageRoute,
-    },
-    {
       icon: <Compass className="w-6 h-6 text-[#183B32]" />,
       title: 'Geographic Tourist Sequencing',
       description:

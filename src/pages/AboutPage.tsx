@@ -69,25 +69,11 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
 
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#183B32] flex items-center justify-center shrink-0 border border-[#E5DFD3]">
-                <Sparkles className="w-5 h-5 text-[#183B32]" />
-              </div>
-              <div>
-                <h4 className="font-serif font-bold text-base text-[#183B32]">
-                  2. Intelligent Assistance via Gemini 3.7
-                </h4>
-                <p className="text-xs sm:text-sm mt-0.5 leading-relaxed">
-                  We use state-of-the-art AI to answer context-rich questions: from dress codes and temple hours to authentic regional recipes.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] text-[#183B32] flex items-center justify-center shrink-0 border border-[#E5DFD3]">
                 <Heart className="w-5 h-5 text-[#D96E37]" />
               </div>
               <div>
                 <h4 className="font-serif font-bold text-base text-[#183B32]">
-                  3. Respect for Local Culture & Ecosystems
+                  2. Respect for Local Culture & Ecosystems
                 </h4>
                 <p className="text-xs sm:text-sm mt-0.5 leading-relaxed">
                   We highlight local family-run eateries, community handicraft guilds, and eco-conscious districts to preserve cultural heritage.
