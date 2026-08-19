@@ -1,0 +1,146 @@
+import React, { useState } from 'react';
+import { Compass, Sparkles, MapPin, Users, Info, Menu, X, ArrowRight, BookOpen, Layers, Camera } from 'lucide-react';
+import { PageRoute } from '../types';
+
+interface NavbarProps {
+  currentPage: PageRoute;
+  onNavigate: (page: PageRoute) => void;
+  onOpenQuickPlanner?: () => void;
+}
+
+export const Navbar: React.FC<NavbarProps> = ({
+  currentPage,
+  onNavigate,
+  onOpenQuickPlanner,
+}) => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const navItems: { id: PageRoute; label: string; icon: React.ReactNode }[] = [
+    { id: 'home', label: 'Home', icon: <Compass className="w-4 h-4" /> },
+    { id: 'explore', label: 'Explore', icon: <MapPin className="w-4 h-4" /> },
+    { id: 'planner', label: 'Trip Planner', icon: <Layers className="w-4 h-4" /> },
+    { id: 'assistant', label: 'AI Assistant', icon: <Sparkles className="w-4 h-4" /> },
+    { id: 'gallery', label: 'Smart Gallery', icon: <Camera className="w-4 h-4" /> },
+    { id: 'group-trips', label: 'Group Trips', icon: <Users className="w-4 h-4" /> },
+    { id: 'features', label: 'Features', icon: <BookOpen className="w-4 h-4" /> },
+    { id: 'about', label: 'About', icon: <Info className="w-4 h-4" /> },
+  ];
+
+  const handleNavClick = (page: PageRoute) => {
+    onNavigate(page);
+    setMobileMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  return (
+    <header className="sticky top-0 z-40 bg-[#FAF7F2]/90 backdrop-blur-md border-b border-[#EAE3D6] transition-all duration-300">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+        
+        {/* Brand Logo */}
+        <button
+          onClick={() => handleNavClick('home')}
+          className="flex items-center gap-3 group text-left cursor-pointer focus:outline-none"
+        >
+          <div className="w-10 h-10 rounded-2xl bg-[#183B32] text-[#FAF7F2] flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-300">
+            <Compass className="w-5 h-5 text-[#E0B466]" />
+          </div>
+          <div>
+            <span className="font-serif font-bold text-xl text-[#183B32] tracking-tight">
+              TripTale
+            </span>
+            <p className="text-[11px] text-[#57605B] hidden sm:block">
+              Peaceful & Smart Travel Companion
+            </p>
+          </div>
+        </button>
+
+        {/* Desktop Navigation Links */}
+        <nav className="hidden lg:flex items-center gap-1 bg-[#F1ECE2] p-1.5 rounded-full border border-[#E2DACB]">
+          {navItems.map((item) => {
+            const isActive = currentPage === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleNavClick(item.id)}
+                className={`px-4 py-2 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
+                  isActive
+                    ? 'bg-[#183B32] text-[#FAF7F2] shadow-sm'
+                    : 'text-[#57605B] hover:text-[#183B32] hover:bg-[#E7DFD1]'
+                }`}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Primary CTA Button & Mobile Trigger */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              if (onOpenQuickPlanner) {
+                onOpenQuickPlanner();
+              } else {
+                handleNavClick('planner');
+              }
+            }}
+            className="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#183B32] hover:bg-[#245246] text-[#FAF7F2] text-xs font-semibold shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer"
+          >
+            <span>Plan My Trip</span>
+            <ArrowRight className="w-3.5 h-3.5 text-[#E0B466]" />
+          </button>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2.5 rounded-2xl bg-[#EFE9DE] hover:bg-[#E5DDCF] text-[#183B32] lg:hidden transition-colors cursor-pointer"
+            aria-label="Toggle navigation menu"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Drawer Menu */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden bg-[#FAF7F2] border-b border-[#EAE3D6] px-4 pt-3 pb-6 space-y-2 animate-fade-in">
+          <div className="grid grid-cols-1 gap-1.5">
+            {navItems.map((item) => {
+              const isActive = currentPage === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavClick(item.id)}
+                  className={`w-full px-4 py-3 rounded-2xl text-sm font-semibold flex items-center justify-between transition-colors ${
+                    isActive
+                      ? 'bg-[#183B32] text-[#FAF7F2]'
+                      : 'bg-[#F3EFE6] text-[#183B32] hover:bg-[#EBE3D3]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </div>
+                  {isActive && <div className="w-2 h-2 rounded-full bg-[#E0B466]" />}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                handleNavClick('planner');
+              }}
+              className="w-full py-3.5 rounded-2xl bg-[#D96E37] hover:bg-[#C25D28] text-[#FAF7F2] text-sm font-bold flex items-center justify-center gap-2 shadow-md transition-all active:scale-98"
+            >
+              <span>Plan My Trip Now</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </header>
+  );
+};

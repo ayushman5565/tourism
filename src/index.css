@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-bg-cream: #FAF7F2;
+    --color-bg-card: #FFFFFF;
+    --color-bg-card-muted: #F3EFE6;
+    --color-forest: #183B32;
+    --color-forest-dark: #102923;
+    --color-forest-light: #245246;
+    --color-earth-brown: #4E3C2F;
+    --color-earth-dark: #382A20;
+    --color-soft-beige: #EFE9DE;
+    --color-gold: #C8963E;
+    --color-gold-light: #E0B466;
+    --color-orange-warm: #D96E37;
+    --color-charcoal: #202422;
+    --color-charcoal-muted: #57605B;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    color: #202422;
+    background-color: #FAF7F2;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, .font-serif-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-feature-settings: "liga" 1, "dlig" 1;
+    color: #183B32;
+  }
+}
+
+/* Subtle peaceful grain texture */
+.peaceful-bg-pattern {
+  background-color: #FAF7F2;
+  background-image: radial-gradient(#d6ccbd 0.75px, transparent 0.75px), radial-gradient(#d6ccbd 0.75px, #FAF7F2 0.75px);
+  background-size: 28px 28px;
+  background-position: 0 0, 14px 14px;
+}
+
+/* Glassmorphism & Calm cards */
+.calm-card {
+  background: #FFFFFF;
+  border: 1px solid #EBE5DA;
+  box-shadow: 0 4px 20px -2px rgba(24, 59, 50, 0.05), 0 2px 6px -1px rgba(24, 59, 50, 0.03);
+}
+
+.calm-card-hover {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.calm-card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px -6px rgba(24, 59, 50, 0.09), 0 4px 12px -2px rgba(24, 59, 50, 0.04);
+  border-color: #DCCFBC;
+}
+
+/* Forest hero subtle glow */
+.forest-gradient {
+  background: linear-gradient(135deg, #183B32 0%, #102923 100%);
+}
+
+.earth-gradient {
+  background: linear-gradient(135deg, #4E3C2F 0%, #382A20 100%);
+}
+
+.gold-gradient-text {
+  background: linear-gradient(135deg, #C8963E 0%, #E0B466 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Animations */
+@keyframes subtle-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gentle-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: subtle-fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-gentle-pulse {
+  animation: gentle-pulse 3s infinite ease-in-out;
+}
+
+/* Custom Clean Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #FAF7F2;
+}
+::-webkit-scrollbar-thumb {
+  background: #D5CBBC;
+  border-radius: 9999px;
+  border: 2px solid #FAF7F2;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C8963E;
+}
+
+/* Leaflet Clean & Peaceful Styling */
+.leaflet-container {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  background-color: #EFE9DE !important;
+  width: 100%;
+  height: 100%;
+  border-radius: 1.25rem;
+  z-index: 1;
+}
+
+.leaflet-popup-content-wrapper {
+  background: #FFFFFF !important;
+  color: #202422 !important;
+  border: 1px solid #E2D9CB !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 30px -5px rgba(24, 59, 50, 0.12) !important;
+  padding: 4px !important;
+}
+
+.leaflet-popup-tip {
+  background: #FFFFFF !important;
+  border: 1px solid #E2D9CB !important;
+}

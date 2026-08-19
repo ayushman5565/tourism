@@ -1,0 +1,6 @@
+{
+  "name": "TripTale",
+  "description": "A peaceful, modern AI tourism platform with smart route generation, Google Maps integration, destination guides, Gemini travel assistant, and group expense settlements.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
