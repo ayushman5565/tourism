@@ -232,16 +232,105 @@ export function updateTripSpending(tripId: string, actualSpending: number): void
   }
 }
 
-export function updateTripNotes(tripId: string, notes: string): void {
+export async function syncTripToCloudSql(trip: SavedTrip, token: string): Promise<boolean> {
   try {
-    const trips = getSavedTrips();
-    const trip = trips.find((t) => t.id === tripId);
-    if (!trip) return;
-
-    trip.notes = notes;
-    trip.updatedAt = new Date().toISOString();
-    saveTrip(trip);
+    const res = await fetch('/api/trips', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        id: trip.id,
+        customName: trip.customName,
+        startLocation: trip.startLocation,
+        destination: trip.destination,
+        travelers: trip.travelers,
+        days: trip.days,
+        travelDates: trip.travelDates,
+        budgetTier: trip.budgetTier,
+        customBudget: trip.customBudget,
+        totalPlannedBudget: trip.totalPlannedBudget || trip.budgetBreakdown?.total,
+        transportMode: trip.transportMode,
+        planData: {
+          placesVisited: trip.placesVisited,
+          activities: trip.activities,
+          dailyItinerary: trip.dailyItinerary,
+          accommodationDetails: trip.accommodationDetails,
+          budgetBreakdown: trip.budgetBreakdown,
+          memories: trip.memories,
+        },
+        notes: trip.notes,
+      }),
+    });
+    return res.ok;
   } catch (err) {
-    console.error('Failed to update trip notes:', err);
+    console.warn('Failed to sync trip to Cloud SQL:', err);
+    return false;
+  }
+}
+
+export async function deleteTripFromCloudSql(tripId: string, token: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/trips/${tripId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to delete trip from Cloud SQL:', err);
+    return false;
+  }
+}
+
+export async function fetchUserTripsFromCloudSql(token: string): Promise<SavedTrip[]> {
+  try {
+    const res = await fetch('/api/trips', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (data.success && Array.isArray(data.trips)) {
+      return data.trips.map((row: any) => {
+        let parsedPlan: any = {};
+        if (row.plan_data) {
+          try {
+            parsedPlan = typeof row.plan_data === 'string' ? JSON.parse(row.plan_data) : row.plan_data;
+          } catch (e) {
+            console.warn('Failed to parse plan_data from db:', e);
+          }
+        }
+        return {
+          id: row.id,
+          customName: row.custom_name,
+          startLocation: row.start_location,
+          destination: row.destination,
+          travelers: row.travelers,
+          days: row.days,
+          travelDates: row.travel_dates,
+          budgetTier: row.budget_tier,
+          customBudget: row.custom_budget,
+          totalPlannedBudget: row.total_planned_budget,
+          transportMode: row.transport_mode,
+          notes: row.notes,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          placesVisited: parsedPlan.placesVisited || [],
+          activities: parsedPlan.activities || [],
+          dailyItinerary: parsedPlan.dailyItinerary || [],
+          accommodationDetails: parsedPlan.accommodationDetails || [],
+          budgetBreakdown: parsedPlan.budgetBreakdown,
+          memories: parsedPlan.memories || [],
+        };
+      });
+    }
+    return [];
+  } catch (err) {
+    console.warn('Failed to fetch user trips from Cloud SQL:', err);
+    return [];
   }
 }

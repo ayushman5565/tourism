@@ -7,7 +7,6 @@ import {
   IndianRupee, 
   Plus, 
   Trash2, 
-  Copy, 
   ArrowRight, 
   Clock, 
   Camera, 
@@ -24,32 +23,41 @@ import {
   Bed,
   Utensils,
   Share2,
-  FolderOpen
+  FolderOpen,
+  AlertTriangle
 } from 'lucide-react';
 import { PageRoute, SavedTrip, TripMemory, TransportMode } from '../types';
 import { 
   getSavedTrips, 
   deleteTrip, 
-  duplicateTrip, 
   saveTrip, 
   addTripMemory, 
   deleteTripMemory, 
   updateTripSpending, 
-  updateTripNotes 
+  fetchUserTripsFromCloudSql,
+  deleteTripFromCloudSql,
+  syncTripToCloudSql
 } from '../utils/tripStorage';
+import { useAuth } from '../context/AuthContext';
 
 interface TripHistoryPageProps {
   onNavigate: (page: PageRoute) => void;
-  onContinueTrip: (trip: SavedTrip) => void;
+  onContinueTrip?: (trip: SavedTrip) => void;
+  onSelectTripForPlanning?: (trip: SavedTrip) => void;
 }
 
 export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
   onNavigate,
   onContinueTrip,
+  onSelectTripForPlanning,
 }) => {
+  const { user, token } = useAuth();
   const [trips, setTrips] = useState<SavedTrip[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<SavedTrip | null>(null);
   
+  // Custom in-app Delete Confirmation Modal State
+  const [tripToDelete, setTripToDelete] = useState<SavedTrip | null>(null);
+
   // Edit Trip Name / Notes / Spending Modal or Inline State
   const [isEditingTrip, setIsEditingTrip] = useState(false);
   const [editName, setEditName] = useState('');
@@ -67,33 +75,67 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
   // Active Tab in Detail Modal: 'itinerary' | 'memories' | 'budget' | 'notes'
   const [detailTab, setDetailTab] = useState<'itinerary' | 'memories' | 'budget' | 'notes'>('itinerary');
 
-  // Load trips on mount
+  // Load trips on mount and when token changes
   useEffect(() => {
     loadTrips();
-  }, []);
+  }, [token]);
 
-  const loadTrips = () => {
-    const list = getSavedTrips();
-    setTrips(list);
+  const loadTrips = async () => {
+    const localList = getSavedTrips();
+    if (token) {
+      const cloudList = await fetchUserTripsFromCloudSql(token);
+      if (cloudList.length > 0) {
+        // Merge cloud trips with local list
+        const mergedMap = new Map<string, SavedTrip>();
+        cloudList.forEach((t) => mergedMap.set(t.id, t));
+        localList.forEach((t) => {
+          if (!mergedMap.has(t.id)) {
+            mergedMap.set(t.id, t);
+          }
+        });
+        const combined = Array.from(mergedMap.values());
+        setTrips(combined);
+        if (selectedTrip) {
+          const refreshed = combined.find((t) => t.id === selectedTrip.id);
+          setSelectedTrip(refreshed || null);
+        }
+        return;
+      }
+    }
+    setTrips(localList);
     if (selectedTrip) {
-      const refreshed = list.find((t) => t.id === selectedTrip.id);
+      const refreshed = localList.find((t) => t.id === selectedTrip.id);
       setSelectedTrip(refreshed || null);
     }
   };
 
-  const handleDelete = (id: string, e?: React.MouseEvent) => {
+  const handlePromptDelete = (trip: SavedTrip, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this trip record?')) {
-      deleteTrip(id);
-      loadTrips();
-      if (selectedTrip?.id === id) setSelectedTrip(null);
-    }
+    setTripToDelete(trip);
   };
 
-  const handleDuplicate = (id: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    duplicateTrip(id);
+  const handleConfirmDelete = async () => {
+    if (!tripToDelete) return;
+    deleteTrip(tripToDelete.id);
+    if (token) {
+      await deleteTripFromCloudSql(tripToDelete.id, token);
+    }
+    if (selectedTrip?.id === tripToDelete.id) {
+      setSelectedTrip(null);
+    }
+    setTripToDelete(null);
     loadTrips();
+  };
+
+  const handleContinue = (trip: SavedTrip, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (onSelectTripForPlanning) {
+      onSelectTripForPlanning(trip);
+    } else if (onContinueTrip) {
+      onContinueTrip(trip);
+    } else {
+      onNavigate('planner');
+    }
   };
 
   const handleOpenDetail = (trip: SavedTrip) => {
@@ -180,6 +222,22 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
               <p className="text-sm sm:text-base text-[#57605B] max-w-2xl leading-relaxed">
                 Revisit your past journeys, track budgets & actual expenses, explore day-by-day itineraries, and preserve beautiful photo memories.
               </p>
+              {user ? (
+                <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#F0F7F4] border border-[#CDE5DC] text-[11px] text-[#183B32]">
+                  <span className="w-2 h-2 rounded-full bg-[#2E7D32]" />
+                  <span>Cloud SQL Synced with <strong>{user.email}</strong></span>
+                </div>
+              ) : (
+                <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#FFF9EE] border border-[#F2DEB0] text-[11px] text-[#C8963E]">
+                  <span>💡 Sign in with email or Google to backup your trips to Cloud SQL database across devices.</span>
+                  <button 
+                    onClick={() => onNavigate('auth')} 
+                    className="underline font-bold text-[#183B32] hover:text-[#245246] cursor-pointer"
+                  >
+                    Sign In
+                  </button>
+                </div>
+              )}
             </div>
 
             <button
@@ -203,7 +261,6 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
               const primaryMemory = trip.memories?.[0];
               const memoryCount = trip.memories?.length || 0;
               const plannedTotal = trip.budgetBreakdown?.total || trip.customBudget || 0;
-              const actualSpent = trip.actualSpending || 0;
 
               return (
                 <div
@@ -299,32 +356,19 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
 
                     {/* Card Actions Footer */}
                     <div className="pt-3 border-t border-[#F0EBE0] flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={(e) => handleDuplicate(trip.id, e)}
-                          title="Duplicate this trip"
-                          className="p-2 rounded-xl text-[#57605B] hover:text-[#183B32] hover:bg-[#FAF7F2] transition-colors cursor-pointer"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={(e) => handleDelete(trip.id, e)}
-                          title="Delete trip"
-                          className="p-2 rounded-xl text-[#8C938E] hover:text-[#C62828] hover:bg-[#FFEBEE] transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => handlePromptDelete(trip, e)}
+                        title="Delete trip"
+                        className="p-2 rounded-xl text-[#8C938E] hover:text-[#C62828] hover:bg-[#FFEBEE] transition-colors cursor-pointer flex items-center gap-1 text-xs"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span className="text-[11px] font-medium hidden sm:inline">Delete</span>
+                      </button>
 
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onContinueTrip(trip);
-                        }}
+                        onClick={(e) => handleContinue(trip, e)}
                         className="px-3.5 py-1.5 rounded-xl bg-[#EFE9DE] hover:bg-[#183B32] text-[#183B32] hover:text-[#FAF7F2] text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
                       >
                         <span>Reopen in Planner</span>
@@ -747,31 +791,20 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
 
             {/* Modal Bottom Action Bar */}
             <div className="p-4 sm:p-6 bg-[#FAF7F2] border-t border-[#EAE3D6] flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleDuplicate(selectedTrip.id)}
-                  className="px-4 py-2 rounded-xl bg-[#FFFFFF] border border-[#E2DACB] hover:bg-[#EFE9DE] text-xs font-semibold text-[#183B32] flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Duplicate</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleDelete(selectedTrip.id)}
-                  className="px-4 py-2 rounded-xl bg-[#FFFFFF] border border-[#E2DACB] hover:bg-[#FFEBEE] text-xs font-semibold text-[#C62828] flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Delete</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => handlePromptDelete(selectedTrip)}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[#FFFFFF] border border-[#E2DACB] hover:bg-[#FFEBEE] hover:border-[#EF9A9A] text-xs font-semibold text-[#C62828] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Trip</span>
+              </button>
 
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
                   setSelectedTrip(null);
-                  onContinueTrip(selectedTrip);
+                  handleContinue(selectedTrip, e);
                 }}
                 className="w-full sm:w-auto px-6 py-2.5 rounded-2xl bg-[#D96E37] hover:bg-[#C25D28] text-[#FAF7F2] text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
@@ -907,6 +940,45 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM IN-APP DELETE CONFIRMATION MODAL */}
+      {tripToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-[#FFFFFF] rounded-3xl max-w-md w-full p-6 sm:p-7 border border-[#E5DFD3] shadow-2xl space-y-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center text-red-600 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-serif font-bold text-lg text-[#183B32]">
+                  Delete Trip Record?
+                </h3>
+                <p className="text-xs text-[#57605B] leading-relaxed">
+                  Are you sure you want to delete <span className="font-bold text-[#202422]">"{tripToDelete.customName}"</span>? This will permanently remove its route plan, budget breakdowns, notes, and attached photo memories.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#F0EBE0]">
+              <button
+                type="button"
+                onClick={() => setTripToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-[#FAF7F2] hover:bg-[#EFE9DE] text-xs font-semibold text-[#57605B] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-5 py-2 rounded-xl bg-[#C62828] hover:bg-[#B71C1C] text-xs font-bold text-white shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Yes, Delete Trip</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

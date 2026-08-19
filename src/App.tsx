@@ -4,6 +4,7 @@ import { Footer } from './components/Footer';
 import { HomePage } from './pages/HomePage';
 import { ExplorePage } from './pages/ExplorePage';
 import { TripPlannerPage } from './pages/TripPlannerPage';
+import { TripItineraryPage } from './pages/TripItineraryPage';
 import { AiAssistantPage } from './pages/AiAssistantPage';
 import { GroupTripsPage } from './pages/GroupTripsPage';
 import { SmartGalleryPage } from './pages/SmartGalleryPage';
@@ -11,12 +12,16 @@ import { FeaturesPage } from './pages/FeaturesPage';
 import { AboutPage } from './pages/AboutPage';
 import { TripHistoryPage } from './pages/TripHistoryPage';
 import { EmergencyHubPage } from './pages/EmergencyHubPage';
+import { AuthPage } from './pages/AuthPage';
 import { AiTravelAssistant } from './components/AiTravelAssistant';
-import { PageRoute, TransportMode, SavedTrip } from './types';
-import { Sparkles } from 'lucide-react';
+import { PageRoute, TransportMode, SavedTrip, TripPlanResult } from './types';
+import { Sparkles, Compass } from 'lucide-react';
+import { generateCuratedTripPlan } from './data/destinationsData';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
-export default function App() {
-  const [currentPage, setCurrentPage] = useState<PageRoute>('home');
+function AppContent() {
+  const { user, loading } = useAuth();
+  const [currentPage, setCurrentPage] = useState<PageRoute>('auth');
   const [selectedStartLocation, setSelectedStartLocation] = useState<string>('');
   const [selectedDestination, setSelectedDestination] = useState<string>('');
   const [selectedTravelMode, setSelectedTravelMode] = useState<TransportMode>('car');
@@ -28,13 +33,42 @@ export default function App() {
   const [plannerBudget, setPlannerBudget] = useState<number>(10000);
   const [plannerTravelers, setPlannerTravelers] = useState<number>(2);
   const [plannerDays, setPlannerDays] = useState<number>(3);
+  const [plannerBudgetTier, setPlannerBudgetTier] = useState<'budget' | 'moderate' | 'luxury' | 'custom'>('moderate');
+  const [plannerDatesText, setPlannerDatesText] = useState<string>('');
+
+  // Generated Active Trip Plan for Dedicated Itinerary Page
+  const [activeTripPlan, setActiveTripPlan] = useState<TripPlanResult | null>(null);
 
   // Floating AI Assistant Modal State
   const [isFloatingAiOpen, setIsFloatingAiOpen] = useState(false);
 
+  // Track if initial landing redirect has happened
+  const [initialRedirectDone, setInitialRedirectDone] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      if (user) {
+        // On initial app load with an active session, send to planner once
+        if (!initialRedirectDone) {
+          setCurrentPage('planner');
+          setInitialRedirectDone(true);
+        }
+      } else {
+        // When not authenticated, always show the signup page first
+        setCurrentPage('auth');
+        setInitialRedirectDone(false);
+      }
+    }
+  }, [user, loading, initialRedirectDone]);
+
   // Scroll to top on page change
   const handleNavigate = (page: PageRoute) => {
-    setCurrentPage(page);
+    // If not authenticated, keep user on auth page
+    if (!user && page !== 'auth') {
+      setCurrentPage('auth');
+    } else {
+      setCurrentPage(page);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -63,6 +97,7 @@ export default function App() {
   const handlePlanTripWithBudget = (dest: string, budget: number, travelers: number, days: number) => {
     setSelectedDestination(dest);
     setPlannerBudget(budget);
+    setPlannerBudgetTier('custom');
     setPlannerTravelers(travelers);
     setPlannerDays(days);
     setCurrentPage('planner');
@@ -87,6 +122,36 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Called when "Generate My Itinerary" succeeds in TripPlannerPage
+  const handlePlanGenerated = (plan: TripPlanResult, config: {
+    startLocation: string;
+    destination: string;
+    travelMode: TransportMode;
+    days: number;
+    travelers: number;
+    datesText: string;
+    budgetTier: 'budget' | 'moderate' | 'luxury' | 'custom';
+    customBudget?: number;
+    distanceKm?: number;
+    durationText?: string;
+  }) => {
+    setActiveTripPlan(plan);
+    setSelectedStartLocation(config.startLocation);
+    setSelectedDestination(config.destination);
+    setSelectedTravelMode(config.travelMode);
+    setPlannerDays(config.days);
+    setPlannerTravelers(config.travelers);
+    setPlannerDatesText(config.datesText);
+    setPlannerBudgetTier(config.budgetTier);
+    if (config.customBudget) {
+      setPlannerBudget(config.customBudget);
+    }
+    setSelectedDistanceKm(config.distanceKm);
+    setSelectedDurationText(config.durationText);
+    setCurrentPage('itinerary');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleLoadSavedTripToPlanner = (trip: SavedTrip) => {
     setSelectedStartLocation(trip.startLocation);
     setSelectedDestination(trip.destination);
@@ -95,6 +160,8 @@ export default function App() {
     }
     setPlannerTravelers(trip.travelers);
     setPlannerDays(trip.days || trip.durationDays || 3);
+    setPlannerBudgetTier(trip.budgetTier || 'moderate');
+    setPlannerDatesText(trip.travelDates || '');
     if (trip.customBudget) {
       setPlannerBudget(trip.customBudget);
     } else if (trip.budgetBreakdown?.total) {
@@ -102,9 +169,43 @@ export default function App() {
     } else if (trip.totalPlannedBudget) {
       setPlannerBudget(trip.totalPlannedBudget);
     }
+
+    // Build plan object so it can also be viewed immediately on itinerary page if requested
+    const curated = generateCuratedTripPlan(
+      trip.destination,
+      trip.startLocation,
+      trip.travelDates || `${trip.days} Days`,
+      trip.travelers,
+      ['Historical Highlights', 'Local Street Food', 'Scenic Viewpoints'],
+      trip.budgetTier === 'custom' ? 'moderate' : trip.budgetTier || 'moderate'
+    );
+    if (trip.dailyItinerary && trip.dailyItinerary.length > 0) {
+      curated.dayWiseItinerary = trip.dailyItinerary;
+    }
+    if (trip.accommodationDetails && trip.accommodationDetails.length > 0) {
+      curated.staySuggestions = trip.accommodationDetails.map((a) => ({
+        neighborhood: a.neighborhood || `${trip.destination} Central`,
+        vibe: a.vibe || 'Comfortable Stay',
+        estimatedCostNight: a.estimatedCostNight || '₹3,000 / night',
+      }));
+    }
+    setActiveTripPlan(curated);
+
     setCurrentPage('planner');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-peaceful-bg-pattern flex flex-col items-center justify-center p-4">
+        <div className="w-16 h-16 rounded-3xl bg-[#183B32] text-[#FAF7F2] flex items-center justify-center shadow-xl mb-4 animate-pulse">
+          <Compass className="w-8 h-8 text-[#E0B466] animate-spin" style={{ animationDuration: '3s' }} />
+        </div>
+        <h2 className="font-serif font-bold text-xl text-[#183B32]">TripTale</h2>
+        <p className="text-xs text-[#57605B] mt-1">Preparing your peaceful travel companion...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#202422] flex flex-col selection:bg-[#183B32] selection:text-[#FAF7F2] relative">
@@ -147,6 +248,26 @@ export default function App() {
             initialTravelers={plannerTravelers}
             initialDays={plannerDays}
             onNavigate={handleNavigate}
+            onPlanGenerated={handlePlanGenerated}
+            onStartGroupTrip={handleStartGroupTrip}
+          />
+        )}
+
+        {currentPage === 'itinerary' && (
+          <TripItineraryPage
+            plan={activeTripPlan}
+            startLocation={selectedStartLocation}
+            destination={selectedDestination}
+            travelMode={selectedTravelMode}
+            days={plannerDays}
+            travelers={plannerTravelers}
+            datesText={plannerDatesText}
+            budgetTier={plannerBudgetTier}
+            customBudget={plannerBudget}
+            distanceKm={selectedDistanceKm}
+            durationText={selectedDurationText}
+            onNavigate={handleNavigate}
+            onUpdatePlan={(updated) => setActiveTripPlan(updated)}
             onStartGroupTrip={handleStartGroupTrip}
           />
         )}
@@ -191,6 +312,10 @@ export default function App() {
         {currentPage === 'about' && (
           <AboutPage onNavigate={handleNavigate} />
         )}
+
+        {currentPage === 'auth' && (
+          <AuthPage onNavigate={handleNavigate} />
+        )}
       </main>
 
       {/* 3. Global Footer */}
@@ -231,5 +356,13 @@ export default function App() {
       )}
 
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
