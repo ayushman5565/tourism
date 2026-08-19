@@ -15,31 +15,65 @@ import {
   CheckCircle2,
   AlertCircle,
   TrendingDown,
-  Info
+  Info,
+  ShieldCheck,
+  Compass
 } from 'lucide-react';
 import { BudgetBreakdown, PageRoute } from '../types';
 import { calculateDestinationBudgetBreakdown } from '../data/destinationsData';
 
-interface BudgetPlannerProps {
-  onNavigate?: (page: PageRoute) => void;
+export interface BudgetPlannerProps {
+  destination?: string;
+  startLocation?: string;
+  travelers?: number;
+  days?: number;
+  travelDates?: string;
+  budgetTier?: 'budget' | 'moderate' | 'luxury' | 'custom';
+  customBudget?: number;
+  onBudgetTierChange?: (tier: 'budget' | 'moderate' | 'luxury' | 'custom') => void;
+  onCustomBudgetChange?: (amount: number | undefined) => void;
   onPlanTrip?: (destination: string, budget: number, travelers: number, days: number) => void;
+  onNavigate?: (page: PageRoute) => void;
+  standalone?: boolean;
 }
 
 type BudgetTierType = 'budget' | 'moderate' | 'luxury' | 'custom';
 
 export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({
-  onNavigate,
+  destination: propDestination,
+  startLocation: propStartLocation,
+  travelers: propTravelers,
+  days: propDays,
+  travelDates: propTravelDates,
+  budgetTier: propBudgetTier,
+  customBudget: propCustomBudget,
+  onBudgetTierChange,
+  onCustomBudgetChange,
   onPlanTrip,
+  onNavigate,
+  standalone = false,
 }) => {
-  // 1. Core Inputs with NO hardcoded default destination/dates/travelers/budget
-  const [startLocation, setStartLocation] = useState<string>('');
-  const [destination, setDestination] = useState<string>('');
-  const [travelers, setTravelers] = useState<number>(0);
-  const [days, setDays] = useState<number>(0);
-  const [travelDates, setTravelDates] = useState<string>('');
-  const [budgetTier, setBudgetTier] = useState<BudgetTierType>('moderate');
-  const [customBudgetInput, setCustomBudgetInput] = useState<string>('');
+  // Local states for standalone mode (e.g. on HomePage)
+  const [localStartLocation, setLocalStartLocation] = useState<string>('');
+  const [localDestination, setLocalDestination] = useState<string>('');
+  const [localTravelers, setLocalTravelers] = useState<number>(0);
+  const [localDays, setLocalDays] = useState<number>(0);
+  const [localTravelDates, setLocalTravelDates] = useState<string>('');
+  const [localBudgetTier, setLocalBudgetTier] = useState<BudgetTierType>('moderate');
+  const [localCustomBudgetInput, setLocalCustomBudgetInput] = useState<string>('');
   const [selectedPreferences, setSelectedPreferences] = useState<string[]>([]);
+
+  // Effective values (Prop takes precedence if provided)
+  const destination = (propDestination !== undefined ? propDestination : localDestination).trim();
+  const startLocation = (propStartLocation !== undefined ? propStartLocation : localStartLocation).trim();
+  const travelers = propTravelers !== undefined && propTravelers > 0 ? propTravelers : localTravelers;
+  const days = propDays !== undefined && propDays > 0 ? propDays : localDays;
+  const travelDates = propTravelDates !== undefined ? propTravelDates : localTravelDates;
+  const budgetTier = (propBudgetTier || localBudgetTier) as BudgetTierType;
+  
+  const customBudgetInput = propCustomBudget !== undefined 
+    ? (propCustomBudget > 0 ? String(propCustomBudget) : '') 
+    : localCustomBudgetInput;
 
   const currency = '₹';
 
@@ -60,16 +94,34 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({
     }
   };
 
-  const parsedCustomBudget = customBudgetInput.trim() ? parseFloat(customBudgetInput.replace(/[^0-9.]/g, '')) || 0 : undefined;
+  const handleTierSelect = (tier: BudgetTierType) => {
+    if (onBudgetTierChange) {
+      onBudgetTierChange(tier);
+    }
+    setLocalBudgetTier(tier);
+  };
 
-  // Calculate destination & traveler scaled realistic breakdown
-  const hasMinInputs = destination.trim().length > 0 && travelers > 0 && days > 0;
+  const handleCustomBudgetChange = (valStr: string) => {
+    setLocalCustomBudgetInput(valStr);
+    const parsed = valStr.trim() ? parseFloat(valStr.replace(/[^0-9.]/g, '')) || 0 : undefined;
+    if (onCustomBudgetChange) {
+      onCustomBudgetChange(parsed);
+    }
+  };
 
+  const parsedCustomBudget = customBudgetInput.trim() 
+    ? parseFloat(customBudgetInput.replace(/[^0-9.]/g, '')) || 0 
+    : undefined;
+
+  // Validation: Check if core inputs are satisfied
+  const hasMinInputs = destination.length > 0 && travelers > 0 && days > 0;
+
+  // Dynamic budget calculation based on destination cost factors, travelers, days, and tier
   const calculatedBreakdown: BudgetBreakdown | null = useMemo(() => {
     if (!hasMinInputs) return null;
 
     return calculateDestinationBudgetBreakdown({
-      destination: destination.trim(),
+      destination,
       travelers,
       days,
       budgetTier,
@@ -77,11 +129,11 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({
     });
   }, [hasMinInputs, destination, travelers, days, budgetTier, parsedCustomBudget]);
 
-  // Baseline minimum cost (Budget tier) for custom budget comparison
+  // Baseline minimum cost (Budget tier) for comparison
   const baselineBudgetCost = useMemo(() => {
     if (!hasMinInputs) return 0;
     const base = calculateDestinationBudgetBreakdown({
-      destination: destination.trim(),
+      destination,
       travelers,
       days,
       budgetTier: 'budget',
@@ -100,15 +152,16 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({
       ? parsedCustomBudget 
       : calculatedBreakdown?.total || 10000;
 
-    if (onPlanTrip && destination.trim()) {
-      onPlanTrip(destination.trim(), targetAmt, travelers || 2, days || 3);
+    if (onPlanTrip && destination) {
+      onPlanTrip(destination, targetAmt, travelers || 2, days || 3);
     } else if (onNavigate) {
       onNavigate('planner');
     }
   };
 
   return (
-    <div className="bg-[#FFFFFF] rounded-3xl p-6 sm:p-10 border border-[#E5DFD3] shadow-xs">
+    <div className="bg-[#FFFFFF] rounded-3xl p-6 sm:p-10 border border-[#E5DFD3] shadow-xs space-y-6">
+      
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#F0EBE0]">
         <div>
@@ -119,12 +172,12 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({
           <h3 className="font-serif font-bold text-2xl sm:text-3xl text-[#183B32]">
             Trip Budget Planner
           </h3>
-          <p className="text-xs sm:text-sm text-[#57605B] mt-1 max-w-2xl">
-            Calculate realistic, destination-aware costs for accommodation, dining, transit, and activities based on your exact trip parameters.
+          <p className="text-xs sm:text-sm text-[#57605B] mt-1 max-w-2xl leading-relaxed">
+            Calculate realistic, destination-aware costs for accommodation, dining, transit, and activities with automatic live breakdown.
           </p>
         </div>
 
-        {/* Quick presets for budget tier */}
+        {/* Budget tier selector chips */}
         <div className="flex flex-wrap items-center gap-1.5 self-start sm:self-auto">
           <span className="text-xs text-[#8C938E] font-medium hidden sm:inline mr-1">Style:</span>
           {[
@@ -136,7 +189,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({
             <button
               key={tier.id}
               type="button"
-              onClick={() => setBudgetTier(tier.id as BudgetTierType)}
+              onClick={() => handleTierSelect(tier.id as BudgetTierType)}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
                 budgetTier === tier.id
                   ? 'bg-[#183B32] text-[#FAF7F2] border-[#183B32] shadow-2xs'
@@ -149,148 +202,120 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({
         </div>
       </div>
 
-      {/* Input Grid: Fixed responsive spacing to prevent label & input overlap */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-6">
-        
-        {/* 1. Starting Location */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
-            Starting Location
-          </label>
-          <div className="relative">
-            <Navigation className="w-4 h-4 text-[#C8963E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={startLocation}
-              onChange={(e) => setStartLocation(e.target.value)}
-              placeholder="e.g. Delhi, Mumbai, Bengaluru..."
-              className="w-full pl-10 pr-3 py-2.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] text-sm font-medium text-[#202422] placeholder:text-[#8C938E] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30"
-            />
+      {/* If standalone mode (e.g. on homepage), show clean inputs for locations & duration */}
+      {standalone && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
+              Starting Location
+            </label>
+            <div className="relative">
+              <Navigation className="w-4 h-4 text-[#C8963E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={localStartLocation}
+                onChange={(e) => setLocalStartLocation(e.target.value)}
+                placeholder="e.g. Delhi, Mumbai..."
+                className="w-full pl-10 pr-3 py-2.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] text-sm font-medium text-[#202422] placeholder:text-[#8C938E] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
+              Destination *
+            </label>
+            <div className="relative">
+              <MapPin className="w-4 h-4 text-[#D96E37] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={localDestination}
+                onChange={(e) => setLocalDestination(e.target.value)}
+                placeholder="e.g. Goa, Jaipur, Manali..."
+                className="w-full pl-10 pr-3 py-2.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] text-sm font-medium text-[#202422] placeholder:text-[#8C938E] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
+              Travelers *
+            </label>
+            <div className="relative">
+              <Users className="w-4 h-4 text-[#8C938E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <select
+                value={localTravelers}
+                onChange={(e) => setLocalTravelers(Number(e.target.value))}
+                className="w-full pl-10 pr-3 py-2.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] text-sm font-medium text-[#202422] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30 cursor-pointer"
+              >
+                <option value={0}>Select Travelers</option>
+                <option value={1}>1 Solo Explorer</option>
+                <option value={2}>2 Travellers</option>
+                <option value={3}>3 Travellers</option>
+                <option value={4}>4 Travellers</option>
+                <option value={5}>5 Travellers</option>
+                <option value={6}>6+ Group</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
+              Trip Duration *
+            </label>
+            <div className="relative">
+              <Calendar className="w-4 h-4 text-[#8C938E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <select
+                value={localDays}
+                onChange={(e) => setLocalDays(Number(e.target.value))}
+                className="w-full pl-10 pr-3 py-2.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] text-sm font-medium text-[#202422] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30 cursor-pointer"
+              >
+                <option value={0}>Select Duration</option>
+                {[1, 2, 3, 4, 5, 6, 7, 10, 14, 21].map((d) => (
+                  <option key={d} value={d}>
+                    {d} {d === 1 ? 'Day (Day Trip)' : 'Days'}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* 2. Destination */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
-            Destination
-          </label>
-          <div className="relative">
-            <MapPin className="w-4 h-4 text-[#D96E37] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              placeholder="e.g. Jaipur, Goa, Manali, Kerala..."
-              className="w-full pl-10 pr-3 py-2.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] text-sm font-medium text-[#202422] placeholder:text-[#8C938E] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30"
-            />
+      {/* Connected Source of Truth Summary Pill (When embedded in Planner or props supplied) */}
+      {!standalone && (
+        <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6] flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-[#183B32] flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5 text-[#D96E37]" />
+              {destination || 'Destination not set'}
+            </span>
+            <span className="text-[#8C938E]">•</span>
+            <span className="text-[#57605B]">
+              {travelers > 0 ? `${travelers} ${travelers === 1 ? 'Traveler' : 'Travelers'}` : 'Travelers not selected'}
+            </span>
+            <span className="text-[#8C938E]">•</span>
+            <span className="text-[#57605B]">
+              {days > 0 ? `${days} ${days === 1 ? 'Day' : 'Days'}` : 'Duration not selected'}
+            </span>
           </div>
+
+          <span className="px-2.5 py-1 rounded-full bg-[#FFFFFF] border border-[#E2DACB] text-[10px] font-bold text-[#183B32] uppercase tracking-wider">
+            Active Tier: {budgetTier}
+          </span>
         </div>
+      )}
 
-        {/* 3. Number of Travellers */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
-            Number of Travellers
-          </label>
-          <div className="relative">
-            <Users className="w-4 h-4 text-[#8C938E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <select
-              value={travelers}
-              onChange={(e) => setTravelers(Number(e.target.value))}
-              className="w-full pl-10 pr-3 py-2.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] text-sm font-medium text-[#202422] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30 cursor-pointer"
-            >
-              <option value={0}>Select Travelers</option>
-              <option value={1}>1 Solo Explorer</option>
-              <option value={2}>2 Travellers</option>
-              <option value={3}>3 Travellers</option>
-              <option value={4}>4 Travellers</option>
-              <option value={5}>5 Travellers</option>
-              <option value={6}>6+ Group</option>
-            </select>
-          </div>
-        </div>
-
-        {/* 4. Trip Duration */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
-            Trip Duration
-          </label>
-          <div className="relative">
-            <Calendar className="w-4 h-4 text-[#8C938E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <select
-              value={days}
-              onChange={(e) => setDays(Number(e.target.value))}
-              className="w-full pl-10 pr-3 py-2.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] text-sm font-medium text-[#202422] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30 cursor-pointer"
-            >
-              <option value={0}>Select Duration</option>
-              {[1, 2, 3, 4, 5, 6, 7, 10, 14, 21].map((d) => (
-                <option key={d} value={d}>
-                  {d} {d === 1 ? 'Day (Day Trip)' : 'Days'}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* 5. Travel Dates */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
-            Travel Dates (Optional)
-          </label>
-          <div className="relative">
-            <Calendar className="w-4 h-4 text-[#8C938E] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={travelDates}
-              onChange={(e) => setTravelDates(e.target.value)}
-              placeholder="e.g. Next weekend, Oct 15-18..."
-              className="w-full pl-10 pr-3 py-2.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] text-sm font-medium text-[#202422] placeholder:text-[#8C938E] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30"
-            />
-          </div>
-        </div>
-
-        {/* 6. Budget Preference Selector / Custom Budget */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
-            Budget Preference
-          </label>
-          <div className="grid grid-cols-4 gap-1.5">
-            {[
-              { id: 'budget', label: 'Budget' },
-              { id: 'moderate', label: 'Balanced' },
-              { id: 'luxury', label: 'Luxury' },
-              { id: 'custom', label: 'Custom' },
-            ].map((tier) => {
-              const isSelected = budgetTier === tier.id;
-              return (
-                <button
-                  key={tier.id}
-                  type="button"
-                  onClick={() => setBudgetTier(tier.id as BudgetTierType)}
-                  className={`py-2 px-1 text-center rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                    isSelected
-                      ? 'bg-[#183B32] text-[#FAF7F2] border-[#183B32]'
-                      : 'bg-[#FAF7F2] text-[#57605B] border-[#E2DACB] hover:bg-[#EFE9DE]'
-                  }`}
-                >
-                  {tier.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-      </div>
-
-      {/* Custom Budget Input Field (When Custom is selected) */}
+      {/* Custom Budget Input & Savings Analysis (When Custom is selected) */}
       {budgetTier === 'custom' && (
-        <div className="mt-4 p-4 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] space-y-2 animate-fade-in">
+        <div className="p-4 sm:p-5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] space-y-3 animate-fade-in">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
-                Enter Your Planned Total Budget (₹)
+                Enter Your Planned Target Budget (₹)
               </label>
               <p className="text-[11px] text-[#57605B]">
-                We will analyze your budget against estimated destination costs and provide actionable savings tips.
+                We compare your custom budget against estimated costs and provide savings recommendations.
               </p>
             </div>
             <div className="relative sm:w-64">
@@ -302,7 +327,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({
                 min={500}
                 step={500}
                 value={customBudgetInput}
-                onChange={(e) => setCustomBudgetInput(e.target.value)}
+                onChange={(e) => handleCustomBudgetChange(e.target.value)}
                 placeholder="e.g. 25000"
                 className="w-full pl-8 pr-3 py-2 rounded-xl bg-[#FFFFFF] border border-[#E2DACB] text-sm font-bold text-[#183B32] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30"
               />
@@ -319,8 +344,8 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({
                     <span className="font-bold block">
                       Sufficient Budget (Surplus: ₹{(parsedCustomBudget - (calculatedBreakdown?.total || 0)).toLocaleString()})
                     </span>
-                    <span className="text-[11px] text-[#57605B] block mt-0.5">
-                      Your budget comfortably covers {days} days in {destination} for {travelers} travelers. You have room for boutique stays or signature regional dining!
+                    <span className="text-[11px] text-[#57605B] block mt-0.5 leading-relaxed">
+                      Your budget comfortably covers {days} days in {destination} for {travelers} {travelers === 1 ? 'traveler' : 'travelers'}. You have room for comfortable boutique stays and signature regional dining!
                     </span>
                   </div>
                 </div>
@@ -329,7 +354,7 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({
                   <AlertCircle className="w-4 h-4 text-[#D96E37] shrink-0 mt-0.5" />
                   <div>
                     <span className="font-bold block">
-                      Budget is Tight (Estimated minimum: ₹{baselineBudgetCost.toLocaleString()})
+                      Budget is Tight (Estimated minimum for {days} days: ₹{baselineBudgetCost.toLocaleString()})
                     </span>
                     <span className="text-[11px] text-[#57605B] block mt-0.5">
                       Shortfall of ~₹{(baselineBudgetCost - parsedCustomBudget).toLocaleString()}. Suggestions to fit within ₹{parsedCustomBudget.toLocaleString()}:
@@ -349,37 +374,10 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({
         </div>
       )}
 
-      {/* Travel Preferences / Interests */}
-      <div className="mt-5 pt-4 border-t border-[#F0EBE0]">
-        <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider mb-2">
-          Travel Preferences & Focus (Optional)
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {availablePreferences.map((pref) => {
-            const isSelected = selectedPreferences.includes(pref);
-            return (
-              <button
-                key={pref}
-                type="button"
-                onClick={() => togglePreference(pref)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${
-                  isSelected
-                    ? 'bg-[#183B32] text-[#FAF7F2] shadow-2xs font-semibold'
-                    : 'bg-[#FAF7F2] text-[#57605B] border border-[#E2DACB] hover:bg-[#EFE9DE]'
-                }`}
-              >
-                {isSelected ? '✓ ' : '+ '}
-                {pref}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Results / Breakdown Section */}
       {hasMinInputs && calculatedBreakdown ? (
-        <div className="mt-8 pt-6 border-t border-[#F0EBE0] animate-fade-in">
-          <div className="flex items-center justify-between mb-4">
+        <div className="pt-2 space-y-6 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2">
             <div>
               <h4 className="font-serif font-bold text-lg text-[#183B32]">
                 Estimated Cost Breakdown for {destination}
@@ -388,11 +386,12 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({
                 Calculated for {travelers} {travelers === 1 ? 'traveler' : 'travelers'} • {days} {days === 1 ? 'day' : 'days'} • {budgetTier.toUpperCase()} style
               </p>
             </div>
-            <span className="text-xs font-bold text-[#183B32] px-3 py-1 bg-[#FAF7F2] rounded-full border border-[#E2DACB]">
+            <span className="text-xs font-bold text-[#183B32] px-3 py-1 bg-[#FAF7F2] rounded-full border border-[#E2DACB] self-start sm:self-auto">
               ~{currency}{dailyPerPerson.toLocaleString()} / person / day
             </span>
           </div>
 
+          {/* 5-Category Breakdown Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
             {/* 1. Accommodation */}
             <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6] flex flex-col justify-between space-y-2 hover:border-[#183B32]/40 transition-colors">
@@ -484,14 +483,14 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({
                   {currency}{calculatedBreakdown.miscellaneous.toLocaleString()}
                 </span>
                 <span className="block text-[10px] text-[#8C938E] mt-0.5">
-                  Souvenirs & reserve
+                  Souvenirs & buffer reserve
                 </span>
               </div>
             </div>
           </div>
 
           {/* Summary Total & Action */}
-          <div className="mt-6 pt-5 border-t border-[#F0EBE0] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-5">
+          <div className="pt-4 border-t border-[#F0EBE0] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-5">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 flex-1">
               <div className="p-3.5 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6]">
                 <span className="text-[10px] font-bold text-[#8C938E] uppercase tracking-wider block">
@@ -518,11 +517,11 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({
                 <span className="font-serif font-bold text-base text-[#183B32] mt-0.5 flex items-center gap-1">
                   {budgetTier === 'custom' && parsedCustomBudget ? (
                     parsedCustomBudget >= calculatedBreakdown.total ? (
-                      <span className="text-[#2E7D32] flex items-center gap-1 text-sm">
+                      <span className="text-[#2E7D32] flex items-center gap-1 text-sm font-semibold">
                         <CheckCircle2 className="w-3.5 h-3.5" /> Covered
                       </span>
                     ) : (
-                      <span className="text-[#D96E37] flex items-center gap-1 text-sm">
+                      <span className="text-[#D96E37] flex items-center gap-1 text-sm font-semibold">
                         <AlertCircle className="w-3.5 h-3.5" /> Tight
                       </span>
                     )
@@ -533,28 +532,31 @@ export const BudgetPlanner: React.FC<BudgetPlannerProps> = ({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleStartPlanning}
-              className="px-8 py-4 rounded-2xl bg-[#183B32] hover:bg-[#245246] text-[#FAF7F2] text-sm font-bold shadow-md flex items-center justify-center gap-2 hover:scale-102 active:scale-98 transition-all cursor-pointer shrink-0"
-            >
-              <span>Plan Full Itinerary for {destination}</span>
-              <ArrowRight className="w-4 h-4 text-[#E0B466]" />
-            </button>
+            {standalone && (
+              <button
+                type="button"
+                onClick={handleStartPlanning}
+                className="px-8 py-4 rounded-2xl bg-[#183B32] hover:bg-[#245246] text-[#FAF7F2] text-sm font-bold shadow-md flex items-center justify-center gap-2 hover:scale-102 active:scale-98 transition-all cursor-pointer shrink-0"
+              >
+                <span>Plan Full Itinerary for {destination}</span>
+                <ArrowRight className="w-4 h-4 text-[#E0B466]" />
+              </button>
+            )}
           </div>
         </div>
       ) : (
-        /* Helpful guidance state before all fields are selected */
-        <div className="mt-8 pt-6 border-t border-[#F0EBE0] text-center p-6 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6]">
-          <Info className="w-6 h-6 text-[#C8963E] mx-auto mb-2" />
-          <h4 className="font-serif font-bold text-sm text-[#183B32]">
-            Enter Destination, Travelers & Duration Above
+        /* Explicit requirement: “Complete your trip details above to calculate your personalized budget.” */
+        <div className="pt-4 border-t border-[#F0EBE0] text-center p-8 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6] space-y-2">
+          <Info className="w-6 h-6 text-[#C8963E] mx-auto opacity-80" />
+          <h4 className="font-serif font-bold text-base text-[#183B32]">
+            Complete your trip details above to calculate your personalized budget.
           </h4>
-          <p className="text-xs text-[#57605B] mt-1 max-w-md mx-auto">
-            Provide your travel destination, number of travelers, and trip length to receive an instant, destination-aware expense breakdown.
+          <p className="text-xs text-[#57605B] max-w-md mx-auto leading-relaxed">
+            Once you provide your destination, duration, and number of travelers in the form above, we will compute accurate regional costs for stays, meals, transit, and sightseeing.
           </p>
         </div>
       )}
+
     </div>
   );
 };

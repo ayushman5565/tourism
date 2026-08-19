@@ -9,8 +9,10 @@ import { GroupTripsPage } from './pages/GroupTripsPage';
 import { SmartGalleryPage } from './pages/SmartGalleryPage';
 import { FeaturesPage } from './pages/FeaturesPage';
 import { AboutPage } from './pages/AboutPage';
+import { TripHistoryPage } from './pages/TripHistoryPage';
+import { EmergencyHubPage } from './pages/EmergencyHubPage';
 import { AiTravelAssistant } from './components/AiTravelAssistant';
-import { PageRoute, TransportMode } from './types';
+import { PageRoute, TransportMode, SavedTrip } from './types';
 import { Sparkles } from 'lucide-react';
 
 export default function App() {
@@ -85,6 +87,25 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleLoadSavedTripToPlanner = (trip: SavedTrip) => {
+    setSelectedStartLocation(trip.startLocation);
+    setSelectedDestination(trip.destination);
+    if (trip.transportMode) {
+      setSelectedTravelMode(trip.transportMode);
+    }
+    setPlannerTravelers(trip.travelers);
+    setPlannerDays(trip.days || trip.durationDays || 3);
+    if (trip.customBudget) {
+      setPlannerBudget(trip.customBudget);
+    } else if (trip.budgetBreakdown?.total) {
+      setPlannerBudget(trip.budgetBreakdown.total);
+    } else if (trip.totalPlannedBudget) {
+      setPlannerBudget(trip.totalPlannedBudget);
+    }
+    setCurrentPage('planner');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#202422] flex flex-col selection:bg-[#183B32] selection:text-[#FAF7F2] relative">
       
@@ -147,6 +168,20 @@ export default function App() {
 
         {currentPage === 'gallery' && (
           <SmartGalleryPage onNavigate={handleNavigate} />
+        )}
+
+        {currentPage === 'trip-history' && (
+          <TripHistoryPage
+            onNavigate={handleNavigate}
+            onSelectTripForPlanning={handleLoadSavedTripToPlanner}
+          />
+        )}
+
+        {currentPage === 'emergency' && (
+          <EmergencyHubPage
+            onNavigate={handleNavigate}
+            activeDestination={selectedDestination}
+          />
         )}
 
         {currentPage === 'features' && (

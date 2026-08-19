@@ -2,6 +2,8 @@ export type PageRoute =
   | 'home'
   | 'explore'
   | 'planner'
+  | 'trip-history'
+  | 'emergency'
   | 'assistant'
   | 'group-trips'
   | 'gallery'
@@ -17,6 +19,65 @@ export type DestinationCategory =
   | 'wellness'
   | 'culinary'
   | 'culture';
+
+export interface TripMemory {
+  id: string;
+  photoUrl: string;
+  caption: string;
+  date: string;
+  locationTag?: string;
+  imageUrl?: string;
+  location?: string;
+  activity?: string;
+}
+
+export interface SavedTrip {
+  id: string;
+  customName: string;
+  createdAt: string;
+  updatedAt?: string;
+  startLocation: string;
+  destination: string;
+  travelers: number;
+  days: number;
+  durationDays?: number;
+  travelDates: string;
+  budgetTier: 'budget' | 'moderate' | 'luxury' | 'custom';
+  customBudget?: number;
+  selectedPreferences?: string[];
+  transportMode?: TransportMode;
+  transportDetails?: {
+    label: string;
+    distanceText?: string;
+    durationText?: string;
+    estimatedCost?: string;
+  };
+  accommodationDetails?: {
+    neighborhood?: string;
+    vibe?: string;
+    estimatedCostNight?: string;
+  }[];
+  dailyItinerary: DayItinerary[];
+  placesVisited?: string[];
+  activities?: string[];
+  foodRecommendations?: string[];
+  budgetBreakdown: BudgetBreakdown;
+  totalPlannedBudget?: number;
+  actualSpending?: number;
+  notes?: string;
+  memories: TripMemory[];
+}
+
+export interface EmergencyContact {
+  id: string;
+  number: string;
+  name: string;
+  category: 'police' | 'ambulance' | 'women_safety' | 'highway' | 'general' | 'transit';
+  description: string;
+  hours: string;
+  isPrimary?: boolean;
+  tollFree?: boolean;
+}
 
 export interface TouristAttraction {
   id: string;

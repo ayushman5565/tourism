@@ -25,11 +25,20 @@ import {
   Bike,
   CloudSun,
   Droplets,
-  Wind
+  Wind,
+  Bookmark,
+  History,
+  ShieldAlert,
+  Users2,
+  X,
+  Check,
+  Heart
 } from 'lucide-react';
-import { TripPlanResult, PageRoute, TransportOption, TransportMode } from '../types';
+import { TripPlanResult, PageRoute, TransportOption, TransportMode, SavedTrip } from '../types';
 import { generateCuratedTripPlan, calculateDestinationBudgetBreakdown } from '../data/destinationsData';
 import { TourismMap } from '../components/TourismMap';
+import { BudgetPlanner } from '../components/BudgetPlanner';
+import { saveTrip } from '../utils/tripStorage';
 
 interface TripPlannerPageProps {
   initialStartLocation?: string;
@@ -41,6 +50,7 @@ interface TripPlannerPageProps {
   initialTravelers?: number;
   initialDays?: number;
   onNavigate: (page: PageRoute) => void;
+  onStartGroupTrip?: (destination: string) => void;
 }
 
 const DEFAULT_TRANSPORT_OPTIONS: TransportOption[] = [
@@ -142,6 +152,7 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
   initialTravelers = 2,
   initialDays = 3,
   onNavigate,
+  onStartGroupTrip,
 }) => {
   // 1. Core Inputs with NO hardcoded default destination/dates
   const [startLocation, setStartLocation] = useState(initialStartLocation);
@@ -171,6 +182,12 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
   const [isModifying, setIsModifying] = useState(false);
   const [modificationSuccess, setModificationSuccess] = useState<string | null>(null);
   const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(null);
+
+  // Save Trip to History Modal State
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [customTripName, setCustomTripName] = useState('');
+  const [saveNotes, setSaveNotes] = useState('');
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
 
   // Dynamic route data from live calculation
   const [calculatedDistanceKm, setCalculatedDistanceKm] = useState<number | undefined>(initialDistanceKm);
@@ -494,6 +511,76 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
   const displayDuration = calculatedDurationText 
     ? calculatedDurationText 
     : currentSelectedTransport.durationText;
+
+  const handleOpenSaveModal = () => {
+    if (!destination.trim()) return;
+    const defaultName = `${destination.trim()} Trip ${new Date().getFullYear()}`;
+    setCustomTripName(defaultName);
+    setSaveNotes('');
+    setIsSaveModalOpen(true);
+  };
+
+  const handleConfirmSaveTrip = () => {
+    if (!destination.trim() || !startLocation.trim()) return;
+
+    const plannedBudget = calculateDestinationBudgetBreakdown({
+      destination: destination.trim(),
+      travelers,
+      days,
+      budgetTier,
+      customBudget: parsedCustomBudget,
+    });
+
+    const newTrip: SavedTrip = {
+      id: `trip-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      customName: customTripName.trim() || `${destination.trim()} Trip`,
+      createdAt: new Date().toISOString(),
+      startLocation: startLocation.trim(),
+      destination: destination.trim(),
+      travelers,
+      days,
+      durationDays: days,
+      travelDates: datesText.trim() || `${days} Days`,
+      budgetTier,
+      customBudget: parsedCustomBudget,
+      selectedPreferences: selectedInterests,
+      transportMode: selectedTransportMode,
+      transportDetails: {
+        label: currentSelectedTransport.label,
+        estimatedCost: currentSelectedTransport.estimatedCostRange,
+        durationText: displayDuration,
+        distanceText: displayDistance,
+      },
+      accommodationDetails: activePlan?.staySuggestions?.map(s => ({
+        neighborhood: s.neighborhood,
+        vibe: s.vibe,
+        estimatedCostNight: s.estimatedCostNight,
+      })) || [
+        { neighborhood: `${destination} Central`, vibe: 'Convenient & Scenic', estimatedCostNight: '₹3,000 / night' }
+      ],
+      dailyItinerary: activePlan?.dayWiseItinerary || [],
+      placesVisited: activePlan?.waypoints.map((w) => w.name) || [],
+      activities: selectedInterests,
+      foodRecommendations: activePlan?.foodRecommendations?.map((f) => f.name) || [],
+      budgetBreakdown: plannedBudget,
+      totalPlannedBudget: plannedBudget.total,
+      actualSpending: 0,
+      notes: saveNotes.trim(),
+      memories: activePlan?.waypoints[0]?.image ? [
+        {
+          id: `mem-${Date.now()}`,
+          photoUrl: activePlan.waypoints[0].image,
+          caption: `${destination} landmark - ${activePlan.waypoints[0].name}`,
+          locationTag: destination,
+          date: new Date().toISOString().split('T')[0],
+        }
+      ] : [],
+    };
+
+    saveTrip(newTrip);
+    setIsSaveModalOpen(false);
+    setSaveSuccessMessage(`"${newTrip.customName}" successfully saved to your Trip History!`);
+  };
 
   return (
     <div className="min-h-screen bg-peaceful-bg-pattern text-[#202422] pb-24">
@@ -1072,6 +1159,67 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
               /* Generated Itinerary Content */
               <div className="space-y-6 animate-fade-in">
                 
+                {/* Save Confirmation Banner */}
+                {saveSuccessMessage && (
+                  <div className="p-4 rounded-2xl bg-[#F0F7F4] border border-[#CDE5DC] text-[#183B32] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-fade-in">
+                    <div className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-5 h-5 text-[#2E7D32] shrink-0" />
+                      <span className="text-xs font-semibold">{saveSuccessMessage}</span>
+                    </div>
+                    <button
+                      onClick={() => onNavigate('trip-history')}
+                      className="px-4 py-2 rounded-xl bg-[#183B32] text-[#FAF7F2] text-xs font-bold hover:bg-[#245246] transition-all cursor-pointer self-start sm:self-auto shrink-0"
+                    >
+                      View in Trip History →
+                    </button>
+                  </div>
+                )}
+
+                {/* Itinerary Quick Action Bar */}
+                <div className="p-4 rounded-3xl bg-[#FAF7F2] border border-[#EAE3D6] flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#2E7D32] animate-pulse" />
+                    <span className="text-xs font-bold text-[#183B32]">
+                      Itinerary Ready for {destination}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleOpenSaveModal}
+                      className="px-4 py-2 rounded-xl bg-[#183B32] hover:bg-[#245246] text-[#FAF7F2] text-xs font-bold flex items-center gap-1.5 shadow-xs hover:scale-102 active:scale-98 transition-all cursor-pointer"
+                    >
+                      <Bookmark className="w-3.5 h-3.5 text-[#E0B466]" />
+                      <span>Save Trip to History</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onStartGroupTrip) {
+                          onStartGroupTrip(destination);
+                        } else {
+                          onNavigate('group-trips');
+                        }
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-[#FFFFFF] hover:bg-[#EFE9DE] border border-[#E2DACB] text-[#183B32] text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Users2 className="w-3.5 h-3.5 text-[#C8963E]" />
+                      <span>Group Split</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('emergency')}
+                      className="px-3.5 py-2 rounded-xl bg-[#FFFFFF] hover:bg-[#FEF6F0] border border-[#E2DACB] text-[#D96E37] text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <ShieldAlert className="w-3.5 h-3.5 text-[#D96E37]" />
+                      <span>Emergency Hub</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* A. Sequenced Tourist Waypoints */}
                 <div className="bg-[#FFFFFF] p-6 rounded-3xl border border-[#E5DFD3] shadow-xs space-y-4">
                   <div className="flex items-center justify-between">
@@ -1212,54 +1360,40 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
                   </div>
                 )}
 
-                {/* D. Destination-Aware Budget Breakdown & Stays (₹ INR) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Realistic Budget */}
-                  <div className="bg-[#FFFFFF] p-6 rounded-3xl border border-[#E5DFD3] shadow-xs space-y-3">
-                    <h4 className="font-serif font-bold text-base text-[#183B32] flex items-center gap-1.5">
-                      <IndianRupee className="w-4 h-4 text-[#C8963E]" />
-                      Estimated Budget ({travelers} {travelers === 1 ? 'traveler' : 'travelers'} • {days} {days === 1 ? 'day' : 'days'})
-                    </h4>
-                    <div className="space-y-2 text-xs text-[#57605B] pt-1">
-                      <div className="flex justify-between">
-                        <span>Stay & Lodging:</span>
-                        <span className="font-semibold text-[#183B32]">₹{activePlan.estimatedTotalBudget.stay.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Meals & Gastronomy:</span>
-                        <span className="font-semibold text-[#183B32]">₹{activePlan.estimatedTotalBudget.food.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Transportation ({activePlan.selectedTransport?.label || 'Direct'}):</span>
-                        <span className="font-semibold text-[#183B32]">₹{activePlan.estimatedTotalBudget.transport.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Sightseeing & Entry:</span>
-                        <span className="font-semibold text-[#183B32]">₹{activePlan.estimatedTotalBudget.sightseeing.toLocaleString()}</span>
-                      </div>
-                      <div className="pt-2 border-t border-[#F0EBE0] flex justify-between font-bold text-sm text-[#183B32]">
-                        <span>Total Estimated:</span>
-                        <span className="text-base text-[#183B32]">₹{activePlan.estimatedTotalBudget.total.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
+                {/* D. Integrated Budget Planner (Single Source of Truth) & Stays */}
+                <div className="space-y-4">
+                  <BudgetPlanner
+                    destination={destination}
+                    startLocation={startLocation}
+                    travelers={travelers}
+                    days={days}
+                    travelDates={datesText}
+                    budgetTier={budgetTier}
+                    customBudget={parsedCustomBudget}
+                    onBudgetTierChange={(t) => setBudgetTier(t)}
+                    onCustomBudgetChange={(amt) => setCustomBudgetInput(amt ? String(amt) : '')}
+                    onNavigate={onNavigate}
+                    standalone={false}
+                  />
 
-                  {/* Stays */}
-                  <div className="bg-[#FFFFFF] p-6 rounded-3xl border border-[#E5DFD3] shadow-xs space-y-3">
-                    <h4 className="font-serif font-bold text-base text-[#183B32] flex items-center gap-1.5">
-                      <Bed className="w-4 h-4 text-[#183B32]" />
-                      Stay Suggestions in {destination}
-                    </h4>
-                    <div className="space-y-2 text-xs text-[#57605B]">
-                      {activePlan.staySuggestions.map((stay, idx) => (
-                        <div key={idx} className="p-2.5 rounded-xl bg-[#FAF7F2] border border-[#EAE3D6]">
-                          <div className="font-bold text-[#183B32]">{stay.neighborhood}</div>
-                          <div className="text-[11px] text-[#57605B]">{stay.vibe}</div>
-                          <div className="text-[10px] font-semibold text-[#C8963E] mt-0.5">{stay.estimatedCostNight}</div>
-                        </div>
-                      ))}
+                  {/* Stays Suggestions */}
+                  {activePlan.staySuggestions && activePlan.staySuggestions.length > 0 && (
+                    <div className="bg-[#FFFFFF] p-6 rounded-3xl border border-[#E5DFD3] shadow-xs space-y-3">
+                      <h4 className="font-serif font-bold text-base text-[#183B32] flex items-center gap-1.5">
+                        <Bed className="w-4 h-4 text-[#183B32]" />
+                        Recommended Stays in {destination}
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-[#57605B]">
+                        {activePlan.staySuggestions.map((stay, idx) => (
+                          <div key={idx} className="p-3 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6] space-y-1">
+                            <div className="font-bold text-[#183B32]">{stay.neighborhood}</div>
+                            <div className="text-[11px] text-[#57605B]">{stay.vibe}</div>
+                            <div className="text-[10px] font-semibold text-[#C8963E] mt-0.5">{stay.estimatedCostNight}</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
               </div>
@@ -1268,6 +1402,112 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
 
         </div>
       </div>
+
+      {/* 5. Save Trip to History Modal Dialog */}
+      {isSaveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#183B32]/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-[#FAF7F2] rounded-3xl border border-[#E5DFD3] max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-5 animate-scale-in">
+            <div className="flex items-center justify-between pb-3 border-b border-[#EAE3D6]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#183B32] text-[#FAF7F2] flex items-center justify-center">
+                  <Bookmark className="w-4 h-4 text-[#E0B466]" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-[#183B32]">
+                    Save Trip to History
+                  </h3>
+                  <p className="text-[11px] text-[#57605B]">
+                    Keep your itinerary, estimated budget, and memories in one place.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsSaveModalOpen(false)}
+                className="p-2 rounded-xl text-[#8C938E] hover:text-[#183B32] hover:bg-[#EFE9DE] transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Trip Name */}
+              <div className="space-y-1">
+                <label className="block font-bold text-[#183B32] uppercase tracking-wider">
+                  Trip Name *
+                </label>
+                <input
+                  type="text"
+                  value={customTripName}
+                  onChange={(e) => setCustomTripName(e.target.value)}
+                  placeholder={`e.g. ${destination} Trip 2026`}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#FFFFFF] border border-[#E2DACB] text-sm font-medium text-[#202422] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30"
+                />
+              </div>
+
+              {/* Trip Details Summary Card */}
+              <div className="p-4 rounded-2xl bg-[#FFFFFF] border border-[#EAE3D6] space-y-2 text-[#57605B]">
+                <div className="flex justify-between">
+                  <span className="font-medium">Route:</span>
+                  <span className="font-bold text-[#183B32]">{startLocation} → {destination}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Travellers & Duration:</span>
+                  <span className="font-bold text-[#183B32]">{travelers} Travellers • {days} Days</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Budget Preference:</span>
+                  <span className="font-bold text-[#183B32] uppercase">{budgetTier}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Transit Method:</span>
+                  <span className="font-bold text-[#183B32]">{currentSelectedTransport.label}</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-[#F0EBE0] text-sm">
+                  <span className="font-bold text-[#183B32]">Planned Budget:</span>
+                  <span className="font-serif font-bold text-[#183B32]">
+                    ₹{activePlan ? activePlan.estimatedTotalBudget.total.toLocaleString() : '10,000'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-1">
+                <label className="block font-bold text-[#183B32] uppercase tracking-wider">
+                  Trip Notes (Optional)
+                </label>
+                <textarea
+                  value={saveNotes}
+                  onChange={(e) => setSaveNotes(e.target.value)}
+                  placeholder="e.g. Pack light clothes, check temple timings in advance, book train tickets early..."
+                  rows={3}
+                  className="w-full p-3 rounded-xl bg-[#FFFFFF] border border-[#E2DACB] text-xs font-medium text-[#202422] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30 resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#EAE3D6]">
+              <button
+                type="button"
+                onClick={() => setIsSaveModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-[#57605B] hover:bg-[#EFE9DE] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSaveTrip}
+                disabled={!customTripName.trim()}
+                className="px-6 py-2.5 rounded-xl bg-[#183B32] hover:bg-[#245246] disabled:opacity-50 text-[#FAF7F2] text-xs font-bold shadow-md flex items-center gap-1.5 transition-all hover:scale-102 active:scale-98 cursor-pointer"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Save Trip to History</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

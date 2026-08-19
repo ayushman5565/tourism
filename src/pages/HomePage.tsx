@@ -19,6 +19,13 @@ import { SAMPLE_DESTINATIONS } from '../data/destinationsData';
 import { BudgetPlanner } from '../components/BudgetPlanner';
 import { QuickRouteMap } from '../components/QuickRouteMap';
 
+import indiaCinematicSplitImg from '../assets/images/india_cinematic_split_1787154854837.jpg';
+import vintageTravelCollageImg from '../assets/images/vintage_travel_collage_1787154882264.jpg';
+import indiaHeritageMoodboardImg from '../assets/images/india_heritage_moodboard_1787154911119.jpg';
+import montBlancHikeImg from '../assets/images/mont_blanc_hike_1787154417165.jpg';
+import ladakhCollageImg from '../assets/images/ladakh_travel_collage_1787155692773.jpg';
+import meghalayaCollageImg from '../assets/images/meghalaya_travel_collage_1787155713728.jpg';
+
 interface HomePageProps {
   onNavigate: (page: PageRoute) => void;
   onPlanTripFromRoute?: (
@@ -32,6 +39,45 @@ interface HomePageProps {
   onSelectDestination: (destId: string) => void;
   onPlanTripWithBudget?: (destination: string, budget: number, travelers: number, days: number) => void;
 }
+
+interface CarouselSlide {
+  id: string;
+  image: string;
+  title: string;
+}
+
+const HERO_CAROUSEL_SLIDES: CarouselSlide[] = [
+  {
+    id: 'india-cinematic-split',
+    image: indiaCinematicSplitImg,
+    title: 'Colors of India',
+  },
+  {
+    id: 'vintage-travel-world',
+    image: vintageTravelCollageImg,
+    title: 'Wanderlust Around The World',
+  },
+  {
+    id: 'india-heritage-moodboard',
+    image: indiaHeritageMoodboardImg,
+    title: 'Saare Jahan Se Acha',
+  },
+  {
+    id: 'mont-blanc-hiking',
+    image: montBlancHikeImg,
+    title: 'Tour du Mont Blanc',
+  },
+  {
+    id: 'ladakh-travel',
+    image: ladakhCollageImg,
+    title: 'Ladakh High Pass',
+  },
+  {
+    id: 'meghalaya-travel',
+    image: meghalayaCollageImg,
+    title: 'Meghalaya Living Roots',
+  },
+];
 
 type VehicleType = 'car' | 'two_wheeler' | 'bus' | 'train';
 
@@ -79,18 +125,17 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [startLocation, setStartLocation] = useState('');
   const [destination, setDestination] = useState('');
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleType>('car');
-  const carouselDestinations = SAMPLE_DESTINATIONS.slice(0, 3);
   const [activeCarouselIndex, setActiveCarouselIndex] = useState(0);
 
   useEffect(() => {
-    if (carouselDestinations.length < 2) return;
+    if (HERO_CAROUSEL_SLIDES.length < 2) return;
 
     const intervalId = window.setInterval(() => {
-      setActiveCarouselIndex((current) => (current + 1) % carouselDestinations.length);
+      setActiveCarouselIndex((current) => (current + 1) % HERO_CAROUSEL_SLIDES.length);
     }, 5500);
 
     return () => window.clearInterval(intervalId);
-  }, [carouselDestinations.length]);
+  }, []);
 
   // Dynamic Route Data State
   const [distanceKm, setDistanceKm] = useState<number>(0);
@@ -250,39 +295,43 @@ export const HomePage: React.FC<HomePageProps> = ({
       
       {/* 1. HERO & WHERE DO YOU WANT TO GO? (ROUTE FINDER ONLY) */}
       <section className="relative isolate overflow-hidden py-12 sm:py-18">
-        {/* Destination imagery from the former sanctuary cards */}
-        <div className="absolute inset-0 -z-10 bg-[#183B32]" aria-hidden="true">
-          {carouselDestinations.map((dest, index) => (
+        {/* Destination imagery carousel with enhanced brightness and contrast */}
+        <div className="absolute inset-0 -z-10 bg-[#102923]" aria-hidden="true">
+          {HERO_CAROUSEL_SLIDES.map((slide, index) => (
             <img
-              key={dest.id}
-              src={dest.heroImage}
-              alt=""
-              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${
-                index === activeCarouselIndex ? 'opacity-100' : 'opacity-0'
+              key={slide.id}
+              src={slide.image}
+              alt={slide.title}
+              className={`absolute inset-0 h-full w-full object-cover brightness-110 contrast-115 saturate-110 transition-opacity duration-1000 ${
+                index === activeCarouselIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-105 pointer-events-none'
               }`}
+              style={{ transition: 'opacity 1s ease-in-out, transform 8s ease-out' }}
               referrerPolicy="no-referrer"
             />
           ))}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#102923]/70 via-[#183B32]/55 to-[#FAF7F2]/85" />
+          {/* Lighter, clear gradient overlay for maximum image visibility and vibrant contrast */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/15 to-[#FAF7F2]/80" />
         </div>
 
         <div className="relative z-10 mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
         
-        {/* Main Title */}
+        {/* Main Title & Minimalist Carousel Dots */}
         <div className="text-center mb-8">
-          <h1 className="font-serif font-bold text-3xl sm:text-5xl lg:text-6xl text-[#FAF7F2] tracking-tight drop-shadow-sm">
+          <h1 className="font-serif font-bold text-3xl sm:text-5xl lg:text-6xl text-[#FAF7F2] tracking-tight drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
             Where do you want to go?
           </h1>
-          <div className="mt-4 flex justify-center gap-2" aria-label="Destination image carousel">
-            {carouselDestinations.map((dest, index) => (
+
+          {/* Carousel Dot Indicators */}
+          <div className="mt-4 flex justify-center items-center gap-1.5" aria-label="Destination image carousel">
+            {HERO_CAROUSEL_SLIDES.map((slide, index) => (
               <button
-                key={dest.id}
+                key={slide.id}
                 type="button"
                 onClick={() => setActiveCarouselIndex(index)}
-                className={`h-2 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-[#FAF7F2] focus:ring-offset-2 focus:ring-offset-[#183B32] ${
-                  index === activeCarouselIndex ? 'w-7 bg-[#E0B466]' : 'w-2 bg-[#FAF7F2]/65 hover:bg-[#FAF7F2]'
+                className={`h-2 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-[#FAF7F2] focus:ring-offset-2 focus:ring-offset-black/50 cursor-pointer ${
+                  index === activeCarouselIndex ? 'w-7 bg-[#E0B466]' : 'w-2 bg-white/70 hover:bg-white'
                 }`}
-                aria-label={`Show ${dest.name} image`}
+                aria-label={`Show ${slide.title} image`}
                 aria-pressed={index === activeCarouselIndex}
               />
             ))}

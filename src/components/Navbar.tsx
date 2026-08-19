@@ -1,5 +1,19 @@
 import React, { useState } from 'react';
-import { Compass, Sparkles, MapPin, Users, Info, Menu, X, ArrowRight, BookOpen, Layers, Camera } from 'lucide-react';
+import { 
+  Compass, 
+  Sparkles, 
+  MapPin, 
+  Users, 
+  Info, 
+  Menu, 
+  X, 
+  ArrowRight, 
+  BookOpen, 
+  Layers, 
+  Camera, 
+  History, 
+  ShieldAlert 
+} from 'lucide-react';
 import { PageRoute } from '../types';
 
 interface NavbarProps {
@@ -19,10 +33,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'home', label: 'Home', icon: <Compass className="w-4 h-4" /> },
     { id: 'explore', label: 'Explore', icon: <MapPin className="w-4 h-4" /> },
     { id: 'planner', label: 'Trip Planner', icon: <Layers className="w-4 h-4" /> },
+    { id: 'trip-history', label: 'Trip History', icon: <History className="w-4 h-4" /> },
+    { id: 'emergency', label: 'Emergency Hub', icon: <ShieldAlert className="w-4 h-4" /> },
     { id: 'assistant', label: 'AI Assistant', icon: <Sparkles className="w-4 h-4" /> },
     { id: 'gallery', label: 'Smart Gallery', icon: <Camera className="w-4 h-4" /> },
     { id: 'features', label: 'Features', icon: <BookOpen className="w-4 h-4" /> },
-    { id: 'about', label: 'About', icon: <Info className="w-4 h-4" /> },
   ];
 
   const handleNavClick = (page: PageRoute) => {

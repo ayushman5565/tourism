@@ -86,6 +86,22 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onSelectDestination 
               </li>
               <li>
                 <button
+                  onClick={() => { onNavigate('trip-history'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  className="hover:text-[#183B32] transition-colors cursor-pointer"
+                >
+                  Trip History
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => { onNavigate('emergency'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  className="hover:text-[#183B32] transition-colors cursor-pointer"
+                >
+                  Emergency & SOS Hub
+                </button>
+              </li>
+              <li>
+                <button
                   onClick={() => { onNavigate('group-trips'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   className="hover:text-[#183B32] transition-colors cursor-pointer"
                 >
