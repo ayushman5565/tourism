@@ -73,6 +73,7 @@ function getWeatherEmoji(weatherCode: number, isDay: boolean = true): string {
 
 export interface TripItineraryPageProps {
   plan: TripPlanResult | null;
+  savedTripId?: string | null;
   startLocation: string;
   destination: string;
   travelMode: TransportMode;
@@ -90,6 +91,7 @@ export interface TripItineraryPageProps {
 
 export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
   plan: initialPlan,
+  savedTripId: initialSavedTripId,
   startLocation,
   destination,
   travelMode,
@@ -106,6 +108,7 @@ export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
 }) => {
   const { user } = useAuth();
   const [activePlan, setActivePlan] = useState<TripPlanResult | null>(initialPlan);
+  const [currentSavedTripId, setCurrentSavedTripId] = useState<string | null>(initialSavedTripId || null);
   const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(null);
 
   // Budget Tier & Custom Budget adjustments on this page
@@ -132,7 +135,10 @@ export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
     if (initialPlan) {
       setActivePlan(initialPlan);
     }
-  }, [initialPlan]);
+    if (initialSavedTripId) {
+      setCurrentSavedTripId(initialSavedTripId);
+    }
+  }, [initialPlan, initialSavedTripId]);
 
   // Fetch weather forecast for destination
   useEffect(() => {
@@ -191,10 +197,14 @@ export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
       customBudget: activeCustomBudget,
     });
 
+    const tripIdToUse = currentSavedTripId || `trip_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    setCurrentSavedTripId(tripIdToUse);
+
     const newSavedTrip: SavedTrip = {
-      id: `trip_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      customName: customTripName.trim() || `${effectiveDestination} Adventure`,
+      id: tripIdToUse,
+      customName: customTripName.trim() || `${effectiveDestination} Trip (${days} Days)`,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       startLocation: effectiveStart,
       destination: effectiveDestination,
       travelers,
@@ -211,19 +221,22 @@ export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
         estimatedCost: effectiveTransport.estimatedCostRange,
       } : undefined,
       dailyItinerary: activePlan.dayWiseItinerary || [],
+      waypoints: activePlan.waypoints || [],
+      placesVisited: (activePlan.waypoints || []).map((w) => w.name),
+      foodRecommendations: activePlan.foodRecommendations || [],
       accommodationDetails: activePlan.staySuggestions,
       budgetBreakdown: calculatedBudget,
       totalPlannedBudget: calculatedBudget.total,
-      notes: saveNotes.trim(),
+      notes: saveNotes.trim() || undefined,
       memories: [],
     };
 
     saveTrip(newSavedTrip, user?.uid);
-    if (user) {
+    if (user?.uid) {
       void syncTripToSupabase(newSavedTrip, user.uid);
     }
     setIsSaveModalOpen(false);
-    setSaveSuccessMessage(`"${newSavedTrip.customName}" successfully archived to your Trip History!`);
+    setSaveSuccessMessage(`"${newSavedTrip.customName}" successfully updated & stored in your Trip History!`);
 
     setTimeout(() => {
       setSaveSuccessMessage(null);
@@ -258,7 +271,46 @@ export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
         if (onUpdatePlan) {
           onUpdatePlan(data.updatedPlan);
         }
-        setModificationSuccess('Itinerary adjusted with your AI preferences!');
+
+        // Also sync updated itinerary to DB if we have a saved trip ID
+        if (currentSavedTripId) {
+          const calculatedBudget = calculateDestinationBudgetBreakdown({
+            destination: effectiveDestination,
+            travelers,
+            days,
+            budgetTier: activeBudgetTier,
+            customBudget: activeCustomBudget,
+          });
+          const updatedTrip: SavedTrip = {
+            id: currentSavedTripId,
+            customName: `${effectiveDestination} Trip (${days} Days)`,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            startLocation: effectiveStart,
+            destination: effectiveDestination,
+            travelers,
+            days,
+            durationDays: days,
+            travelDates: effectiveDates,
+            budgetTier: activeBudgetTier,
+            customBudget: activeCustomBudget,
+            transportMode: travelMode,
+            dailyItinerary: data.updatedPlan.dayWiseItinerary || activePlan.dayWiseItinerary || [],
+            waypoints: data.updatedPlan.waypoints || activePlan.waypoints || [],
+            placesVisited: (data.updatedPlan.waypoints || activePlan.waypoints || []).map((w: any) => w.name),
+            foodRecommendations: data.updatedPlan.foodRecommendations || activePlan.foodRecommendations || [],
+            accommodationDetails: data.updatedPlan.staySuggestions || activePlan.staySuggestions,
+            budgetBreakdown: calculatedBudget,
+            totalPlannedBudget: calculatedBudget.total,
+            memories: [],
+          };
+          saveTrip(updatedTrip, user?.uid);
+          if (user?.uid) {
+            void syncTripToSupabase(updatedTrip, user.uid);
+          }
+        }
+
+        setModificationSuccess('Itinerary adjusted with your AI preferences & saved to database!');
         setModificationPrompt('');
       } else {
         throw new Error('Could not parse adjusted plan');
