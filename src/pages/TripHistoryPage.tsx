@@ -29,6 +29,7 @@ import {
 import { PageRoute, SavedTrip, TripMemory, TransportMode } from '../types';
 import { 
   getSavedTrips, 
+  setSavedTrips,
   deleteTrip, 
   saveTrip, 
   addTripMemory, 
@@ -75,33 +76,24 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
   // Active Tab in Detail Modal: 'itinerary' | 'memories' | 'budget' | 'notes'
   const [detailTab, setDetailTab] = useState<'itinerary' | 'memories' | 'budget' | 'notes'>('itinerary');
 
-  // Load trips on mount and when token changes
+  // Load trips on mount and when user/token changes
   useEffect(() => {
     loadTrips();
-  }, [token]);
+  }, [token, user?.uid]);
 
   const loadTrips = async () => {
-    const localList = getSavedTrips();
-    if (token) {
+    if (token && user?.uid) {
       const cloudList = await fetchUserTripsFromCloudSql(token);
-      if (cloudList.length > 0) {
-        // Merge cloud trips with local list
-        const mergedMap = new Map<string, SavedTrip>();
-        cloudList.forEach((t) => mergedMap.set(t.id, t));
-        localList.forEach((t) => {
-          if (!mergedMap.has(t.id)) {
-            mergedMap.set(t.id, t);
-          }
-        });
-        const combined = Array.from(mergedMap.values());
-        setTrips(combined);
-        if (selectedTrip) {
-          const refreshed = combined.find((t) => t.id === selectedTrip.id);
-          setSelectedTrip(refreshed || null);
-        }
-        return;
+      setSavedTrips(cloudList, user.uid);
+      setTrips(cloudList);
+      if (selectedTrip) {
+        const refreshed = cloudList.find((t) => t.id === selectedTrip.id);
+        setSelectedTrip(refreshed || null);
       }
+      return;
     }
+
+    const localList = getSavedTrips(user?.uid);
     setTrips(localList);
     if (selectedTrip) {
       const refreshed = localList.find((t) => t.id === selectedTrip.id);
@@ -116,7 +108,7 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
 
   const handleConfirmDelete = async () => {
     if (!tripToDelete) return;
-    deleteTrip(tripToDelete.id);
+    deleteTrip(tripToDelete.id, user?.uid);
     if (token) {
       await deleteTripFromCloudSql(tripToDelete.id, token);
     }
@@ -124,7 +116,7 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
       setSelectedTrip(null);
     }
     setTripToDelete(null);
-    loadTrips();
+    await loadTrips();
   };
 
   const handleContinue = (trip: SavedTrip, e?: React.MouseEvent) => {
@@ -146,7 +138,7 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
     setDetailTab('itinerary');
   };
 
-  const handleSaveTripEdits = () => {
+  const handleSaveTripEdits = async () => {
     if (!selectedTrip) return;
     const spendingNum = editActualSpending.trim() ? parseFloat(editActualSpending.replace(/[^0-9.]/g, '')) || 0 : undefined;
     const updated: SavedTrip = {
@@ -156,9 +148,13 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
       actualSpending: spendingNum,
       updatedAt: new Date().toISOString(),
     };
-    saveTrip(updated);
+    saveTrip(updated, user?.uid);
+    if (token) {
+      await syncTripToCloudSql(updated, token);
+    }
     setIsEditingTrip(false);
-    loadTrips();
+    setSelectedTrip(updated);
+    await loadTrips();
   };
 
   // Handle Photo Upload (File or URL)
@@ -181,28 +177,45 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const handleAddMemorySubmit = (e: React.FormEvent) => {
+  const handleAddMemorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTrip || !memoryPhotoUrl.trim() || !memoryCaption.trim()) return;
 
-    addTripMemory(selectedTrip.id, {
+    const newMem = addTripMemory(selectedTrip.id, {
       photoUrl: memoryPhotoUrl.trim(),
       caption: memoryCaption.trim(),
       date: memoryDate,
       locationTag: memoryLocationTag.trim() || selectedTrip.destination,
-    });
+    }, user?.uid);
+
+    if (newMem && token) {
+      const updatedTrip: SavedTrip = {
+        ...selectedTrip,
+        memories: [newMem, ...(selectedTrip.memories || [])],
+        updatedAt: new Date().toISOString(),
+      };
+      await syncTripToCloudSql(updatedTrip, token);
+    }
 
     setMemoryPhotoUrl('');
     setMemoryCaption('');
     setMemoryLocationTag('');
     setIsAddMemoryOpen(false);
-    loadTrips();
+    await loadTrips();
   };
 
-  const handleDeleteMemory = (memoryId: string) => {
+  const handleDeleteMemory = async (memoryId: string) => {
     if (!selectedTrip) return;
-    deleteTripMemory(selectedTrip.id, memoryId);
-    loadTrips();
+    deleteTripMemory(selectedTrip.id, memoryId, user?.uid);
+    if (token) {
+      const updatedTrip: SavedTrip = {
+        ...selectedTrip,
+        memories: (selectedTrip.memories || []).filter((m) => m.id !== memoryId),
+        updatedAt: new Date().toISOString(),
+      };
+      await syncTripToCloudSql(updatedTrip, token);
+    }
+    await loadTrips();
   };
 
   return (
@@ -225,11 +238,11 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
               {user ? (
                 <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#F0F7F4] border border-[#CDE5DC] text-[11px] text-[#183B32]">
                   <span className="w-2 h-2 rounded-full bg-[#2E7D32]" />
-                  <span>Cloud SQL Synced with <strong>{user.email}</strong></span>
+                  <span>Synced with <strong>{user.email}</strong></span>
                 </div>
               ) : (
                 <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#FFF9EE] border border-[#F2DEB0] text-[11px] text-[#C8963E]">
-                  <span>💡 Sign in with email or Google to backup your trips to Cloud SQL database across devices.</span>
+                  <span>💡 Sign in with email or Google to backup your trips across devices.</span>
                   <button 
                     onClick={() => onNavigate('auth')} 
                     className="underline font-bold text-[#183B32] hover:text-[#245246] cursor-pointer"

@@ -1,6 +1,6 @@
 import { db } from './index.ts';
 import { users, trips } from './schema.ts';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { signJwtToken } from '../lib/jwt.ts';
 
@@ -197,7 +197,7 @@ export async function saveUserTrip(tripData: {
 
 export async function deleteUserTrip(tripId: string, userId: string) {
   try {
-    await db.delete(trips).where(eq(trips.id, tripId));
+    await db.delete(trips).where(and(eq(trips.id, tripId), eq(trips.userId, userId)));
     return { success: true };
   } catch (error) {
     console.error('Failed to delete trip from Cloud SQL:', error);
