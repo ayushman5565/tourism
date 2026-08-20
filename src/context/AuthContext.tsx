@@ -1,12 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import {
-  auth,
-  googleAuthProvider,
-  signInWithPopup,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-  User as FirebaseUser,
-} from '../lib/firebase';
+import { User } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 
 export interface AppUser {
   uid: string;
@@ -16,271 +10,142 @@ export interface AppUser {
   emailVerified?: boolean;
 }
 
-export interface DbUserProfile {
-  id?: number;
-  uid: string;
-  email: string;
-  displayName?: string | null;
-  photoUrl?: string | null;
-  emailVerified?: boolean;
-  createdAt?: string;
-}
-
 interface AuthContextType {
   user: AppUser | null;
-  dbUser: DbUserProfile | null;
-  token: string | null;
   loading: boolean;
   signUpWithEmail: (email: string, pass: string, name?: string) => Promise<AppUser>;
   signInWithEmail: (email: string, pass: string) => Promise<AppUser>;
-  signInWithGoogle: () => Promise<AppUser>;
+  signInWithGoogle: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   resendEmailVerification: () => Promise<void>;
   logout: () => Promise<void>;
   refreshUserProfile: () => Promise<void>;
 }
 
-const AUTH_STORAGE_KEY = 'TRIPTALE_AUTH_SESSION_V1';
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function toAppUser(supabaseUser: User): AppUser {
+  const metadata = supabaseUser.user_metadata || {};
+  const displayName =
+    typeof metadata.display_name === 'string'
+      ? metadata.display_name
+      : typeof metadata.full_name === 'string'
+        ? metadata.full_name
+        : null;
+  const photoURL =
+    typeof metadata.avatar_url === 'string'
+      ? metadata.avatar_url
+      : typeof metadata.picture === 'string'
+        ? metadata.picture
+        : null;
+
+  return {
+    uid: supabaseUser.id,
+    email: supabaseUser.email || null,
+    displayName,
+    photoURL,
+    emailVerified: Boolean(supabaseUser.email_confirmed_at),
+  };
+}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AppUser | null>(null);
-  const [dbUser, setDbUser] = useState<DbUserProfile | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore existing session from localStorage on startup
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed?.token && parsed?.user) {
-          setUser(parsed.user);
-          setDbUser(parsed.dbUser || null);
-          setToken(parsed.token);
-        }
+    let active = true;
+
+    const restoreSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) console.warn('Could not restore Supabase session:', error);
+      if (active) {
+        setUser(data.session?.user ? toAppUser(data.session.user) : null);
+        setLoading(false);
       }
-    } catch (err) {
-      console.warn('Failed to restore session from storage:', err);
-    }
-  }, []);
+    };
 
-  const persistSession = (currentUser: AppUser | null, currentToken: string | null, currentDbUser: DbUserProfile | null) => {
-    setUser(currentUser);
-    setToken(currentToken);
-    setDbUser(currentDbUser);
+    void restoreSession();
 
-    if (currentUser && currentToken) {
-      try {
-        localStorage.setItem(
-          AUTH_STORAGE_KEY,
-          JSON.stringify({ user: currentUser, token: currentToken, dbUser: currentDbUser })
-        );
-      } catch (e) {
-        console.warn('Failed to save auth to localStorage:', e);
-      }
-    } else {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-    }
-  };
-
-  const syncUserWithBackend = async (currentUser: FirebaseUser, idToken: string) => {
-    try {
-      const response = await fetch('/api/auth/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          email: currentUser.email,
-          displayName: currentUser.displayName,
-          photoUrl: currentUser.photoURL,
-          emailVerified: currentUser.emailVerified,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.user) {
-          const appUser: AppUser = {
-            uid: currentUser.uid,
-            email: currentUser.email,
-            displayName: currentUser.displayName || data.user.displayName,
-            photoURL: currentUser.photoURL || data.user.photoUrl,
-            emailVerified: currentUser.emailVerified ?? data.user.emailVerified,
-          };
-          persistSession(appUser, idToken, data.user);
-        }
-      }
-    } catch (err) {
-      console.warn('Could not sync user profile with Cloud SQL backend:', err);
-    }
-  };
-
-  const refreshUserProfile = async () => {
-    if (!token) return;
-    try {
-      const response = await fetch('/api/auth/verify-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.user) {
-          const updatedUser: AppUser = {
-            ...user!,
-            emailVerified: true,
-          };
-          persistSession(updatedUser, token, data.user);
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to refresh profile status:', err);
-    }
-  };
-
-  // Firebase auth state listener (for Google OAuth)
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          const idToken = await firebaseUser.getIdToken();
-          await syncUserWithBackend(firebaseUser, idToken);
-        } catch (err) {
-          console.error('Error fetching Google OAuth token:', err);
-        }
-      }
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!active) return;
+      setUser(session?.user ? toAppUser(session.user) : null);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
-  // 1. Email & Password Sign Up via Cloud SQL Backend
   const signUpWithEmail = async (email: string, pass: string, name?: string): Promise<AppUser> => {
-    const response = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: pass, displayName: name }),
-    });
-
-    const data = await response.json();
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || 'Failed to create account');
-    }
-
-    const appUser: AppUser = {
-      uid: data.user.uid,
-      email: data.user.email,
-      displayName: data.user.displayName,
-      photoURL: data.user.photoUrl,
-      emailVerified: data.user.emailVerified,
-    };
-
-    persistSession(appUser, data.token, data.user);
-    return appUser;
-  };
-
-  // 2. Email & Password Sign In via Cloud SQL Backend
-  const signInWithEmail = async (email: string, pass: string): Promise<AppUser> => {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: pass }),
-    });
-
-    const data = await response.json();
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || 'Invalid email or password');
-    }
-
-    const appUser: AppUser = {
-      uid: data.user.uid,
-      email: data.user.email,
-      displayName: data.user.displayName,
-      photoURL: data.user.photoUrl,
-      emailVerified: data.user.emailVerified,
-    };
-
-    persistSession(appUser, data.token, data.user);
-    return appUser;
-  };
-
-  // 3. Google OAuth 1-Click Popup
-  const signInWithGoogle = async (): Promise<AppUser> => {
-    const userCredential = await signInWithPopup(auth, googleAuthProvider);
-    const googleUser = userCredential.user;
-    const idToken = await googleUser.getIdToken();
-    
-    const appUser: AppUser = {
-      uid: googleUser.uid,
-      email: googleUser.email,
-      displayName: googleUser.displayName,
-      photoURL: googleUser.photoURL,
-      emailVerified: googleUser.emailVerified,
-    };
-
-    await syncUserWithBackend(googleUser, idToken);
-    return appUser;
-  };
-
-  // 4. Password Reset
-  const sendPasswordReset = async (email: string): Promise<void> => {
-    const response = await fetch('/api/auth/forgot-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-    const data = await response.json();
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || 'Failed to send password reset');
-    }
-  };
-
-  // 5. Resend/Verify Email
-  const resendEmailVerification = async (): Promise<void> => {
-    if (!token) {
-      throw new Error('No active session found.');
-    }
-    const response = await fetch('/api/auth/verify-email', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password: pass,
+      options: {
+        data: name?.trim() ? { display_name: name.trim() } : undefined,
+        emailRedirectTo: window.location.origin,
       },
     });
-    const data = await response.json();
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || 'Failed to verify email');
-    }
-    if (user) {
-      const updatedUser: AppUser = { ...user, emailVerified: true };
-      persistSession(updatedUser, token, data.user);
-    }
+
+    if (error) throw error;
+    if (!data.user) throw new Error('Supabase did not return a newly created user.');
+    return toAppUser(data.user);
   };
 
-  // 6. Sign Out
+  const signInWithEmail = async (email: string, pass: string): Promise<AppUser> => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password: pass,
+    });
+
+    if (error) throw error;
+    if (!data.user) throw new Error('Supabase did not return a signed-in user.');
+    return toAppUser(data.user);
+  };
+
+  const signInWithGoogle = async (): Promise<void> => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) throw error;
+  };
+
+  const sendPasswordReset = async (email: string): Promise<void> => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: window.location.origin,
+    });
+    if (error) throw error;
+  };
+
+  const resendEmailVerification = async (): Promise<void> => {
+    if (!user?.email) throw new Error('No active session found.');
+
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: user.email,
+      options: { emailRedirectTo: window.location.origin },
+    });
+    if (error) throw error;
+  };
+
+  const refreshUserProfile = async (): Promise<void> => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) throw error;
+    setUser(data.user ? toAppUser(data.user) : null);
+  };
+
   const logout = async (): Promise<void> => {
-    try {
-      await firebaseSignOut(auth);
-    } catch (e) {
-      // ignore
-    }
-    persistSession(null, null, null);
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    setUser(null);
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        dbUser,
-        token,
         loading,
         signUpWithEmail,
         signInWithEmail,
@@ -298,8 +163,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };

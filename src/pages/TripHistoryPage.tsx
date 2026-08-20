@@ -35,9 +35,9 @@ import {
   addTripMemory, 
   deleteTripMemory, 
   updateTripSpending, 
-  fetchUserTripsFromCloudSql,
-  deleteTripFromCloudSql,
-  syncTripToCloudSql
+  fetchUserTripsFromSupabase,
+  deleteTripFromSupabase,
+  syncTripToSupabase
 } from '../utils/tripStorage';
 import { useAuth } from '../context/AuthContext';
 
@@ -52,7 +52,7 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
   onContinueTrip,
   onSelectTripForPlanning,
 }) => {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const [trips, setTrips] = useState<SavedTrip[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<SavedTrip | null>(null);
   
@@ -76,18 +76,27 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
   // Active Tab in Detail Modal: 'itinerary' | 'memories' | 'budget' | 'notes'
   const [detailTab, setDetailTab] = useState<'itinerary' | 'memories' | 'budget' | 'notes'>('itinerary');
 
-  // Load trips on mount and when user/token changes
+  // Load trips on mount and when the authenticated Supabase user changes.
   useEffect(() => {
     loadTrips();
-  }, [token, user?.uid]);
+  }, [user?.uid]);
 
   const loadTrips = async () => {
-    if (token && user?.uid) {
-      const cloudList = await fetchUserTripsFromCloudSql(token);
-      setSavedTrips(cloudList, user.uid);
-      setTrips(cloudList);
+    if (user?.uid) {
+      const cloudList = await fetchUserTripsFromSupabase(user.uid);
+      const localList = getSavedTrips(user.uid);
+      // A failed or unavailable Supabase request returns an empty list. Keep
+      // the local-first archive intact instead of overwriting it with [].
+      const mergedTrips = new Map(localList.map((trip) => [trip.id, trip]));
+      cloudList.forEach((trip) => mergedTrips.set(trip.id, trip));
+      const combinedList = Array.from(mergedTrips.values()).sort((a, b) =>
+        new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime()
+      );
+
+      setSavedTrips(combinedList, user.uid);
+      setTrips(combinedList);
       if (selectedTrip) {
-        const refreshed = cloudList.find((t) => t.id === selectedTrip.id);
+        const refreshed = combinedList.find((t) => t.id === selectedTrip.id);
         setSelectedTrip(refreshed || null);
       }
       return;
@@ -109,8 +118,8 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
   const handleConfirmDelete = async () => {
     if (!tripToDelete) return;
     deleteTrip(tripToDelete.id, user?.uid);
-    if (token) {
-      await deleteTripFromCloudSql(tripToDelete.id, token);
+    if (user) {
+      await deleteTripFromSupabase(tripToDelete.id);
     }
     if (selectedTrip?.id === tripToDelete.id) {
       setSelectedTrip(null);
@@ -149,8 +158,8 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
       updatedAt: new Date().toISOString(),
     };
     saveTrip(updated, user?.uid);
-    if (token) {
-      await syncTripToCloudSql(updated, token);
+    if (user) {
+      await syncTripToSupabase(updated, user.uid);
     }
     setIsEditingTrip(false);
     setSelectedTrip(updated);
@@ -188,13 +197,13 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
       locationTag: memoryLocationTag.trim() || selectedTrip.destination,
     }, user?.uid);
 
-    if (newMem && token) {
+    if (newMem && user) {
       const updatedTrip: SavedTrip = {
         ...selectedTrip,
         memories: [newMem, ...(selectedTrip.memories || [])],
         updatedAt: new Date().toISOString(),
       };
-      await syncTripToCloudSql(updatedTrip, token);
+      await syncTripToSupabase(updatedTrip, user.uid);
     }
 
     setMemoryPhotoUrl('');
@@ -207,13 +216,13 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
   const handleDeleteMemory = async (memoryId: string) => {
     if (!selectedTrip) return;
     deleteTripMemory(selectedTrip.id, memoryId, user?.uid);
-    if (token) {
+    if (user) {
       const updatedTrip: SavedTrip = {
         ...selectedTrip,
         memories: (selectedTrip.memories || []).filter((m) => m.id !== memoryId),
         updatedAt: new Date().toISOString(),
       };
-      await syncTripToCloudSql(updatedTrip, token);
+      await syncTripToSupabase(updatedTrip, user.uid);
     }
     await loadTrips();
   };

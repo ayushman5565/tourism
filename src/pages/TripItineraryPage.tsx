@@ -36,7 +36,7 @@ import {
 } from '../types';
 import { TourismMap } from '../components/TourismMap';
 import { BudgetPlanner } from '../components/BudgetPlanner';
-import { saveTrip, syncTripToCloudSql } from '../utils/tripStorage';
+import { saveTrip, syncTripToSupabase } from '../utils/tripStorage';
 import { calculateDestinationBudgetBreakdown } from '../data/destinationsData';
 import { useAuth } from '../context/AuthContext';
 
@@ -104,7 +104,7 @@ export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
   onUpdatePlan,
   onStartGroupTrip,
 }) => {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const [activePlan, setActivePlan] = useState<TripPlanResult | null>(initialPlan);
   const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(null);
 
@@ -219,8 +219,8 @@ export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
     };
 
     saveTrip(newSavedTrip, user?.uid);
-    if (token) {
-      syncTripToCloudSql(newSavedTrip, token);
+    if (user) {
+      void syncTripToSupabase(newSavedTrip, user.uid);
     }
     setIsSaveModalOpen(false);
     setSaveSuccessMessage(`"${newSavedTrip.customName}" successfully archived to your Trip History!`);

@@ -110,9 +110,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
     setSubmitting(true);
     try {
-      await signUpWithEmail(email, password, displayName);
-      setSuccessMessage('Account created successfully! Opening your Trip Planner...');
-      onNavigate('planner');
+      const newUser = await signUpWithEmail(email, password, displayName);
+      if (newUser.emailVerified) {
+        setSuccessMessage('Account created successfully! Opening your Trip Planner...');
+        onNavigate('planner');
+      } else {
+        setSuccessMessage('Account created. Check your inbox to confirm your email, then sign in.');
+        setMode('signin');
+      }
     } catch (err: any) {
       console.error('Sign up error:', err);
       const code = err?.code || '';
