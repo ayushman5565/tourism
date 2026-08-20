@@ -2,13 +2,15 @@ export type PageRoute =
   | 'home'
   | 'explore'
   | 'planner'
+  | 'itinerary'
   | 'trip-history'
   | 'emergency'
   | 'assistant'
   | 'group-trips'
   | 'gallery'
   | 'features'
-  | 'about';
+  | 'about'
+  | 'auth';
 
 export type DestinationCategory =
   | 'all'

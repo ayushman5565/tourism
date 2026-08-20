@@ -12,9 +12,13 @@ import {
   Layers, 
   Camera, 
   History, 
-  ShieldAlert 
+  ShieldAlert,
+  User as UserIcon,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { PageRoute } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 interface NavbarProps {
   currentPage: PageRoute;
@@ -28,6 +32,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenQuickPlanner,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user } = useAuth();
 
   const navItems: { id: PageRoute; label: string; icon: React.ReactNode }[] = [
     { id: 'home', label: 'Home', icon: <Compass className="w-4 h-4" /> },
@@ -89,8 +94,37 @@ export const Navbar: React.FC<NavbarProps> = ({
           })}
         </nav>
 
-        {/* Primary CTA Button & Mobile Trigger */}
-        <div className="flex items-center gap-3">
+        {/* Primary CTA, Auth Profile Button & Mobile Trigger */}
+        <div className="flex items-center gap-2.5">
+          {/* User Account / Auth Button */}
+          <button
+            onClick={() => handleNavClick('auth')}
+            className={`px-3.5 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
+              currentPage === 'auth'
+                ? 'bg-[#183B32] text-[#FAF7F2] border-[#183B32]'
+                : user
+                ? 'bg-[#FAF7F2] text-[#183B32] border-[#E2DACB] hover:bg-[#EFE9DE]'
+                : 'bg-[#183B32] text-[#FAF7F2] border-[#183B32] hover:bg-[#245246] shadow-xs'
+            }`}
+            title={user ? `Signed in as ${user.email}` : 'Sign Up or Sign In'}
+          >
+            {user ? (
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-5 rounded-full bg-[#183B32] text-[#FAF7F2] text-[10px] font-bold flex items-center justify-center uppercase">
+                  {user.displayName ? user.displayName[0] : user.email ? user.email[0] : 'U'}
+                </div>
+                <span className="hidden sm:inline font-bold text-[#183B32] max-w-[100px] truncate">
+                  {user.displayName || user.email?.split('@')[0]}
+                </span>
+              </div>
+            ) : (
+              <>
+                <UserIcon className="w-3.5 h-3.5 text-[#E0B466]" />
+                <span>Sign Up / Sign In</span>
+              </>
+            )}
+          </button>
+
           <button
             onClick={() => {
               if (onOpenQuickPlanner) {
@@ -140,6 +174,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               );
             })}
+
+            {/* Mobile Auth button */}
+            <button
+              onClick={() => handleNavClick('auth')}
+              className={`w-full px-4 py-3 rounded-2xl text-sm font-semibold flex items-center justify-between transition-colors ${
+                currentPage === 'auth'
+                  ? 'bg-[#183B32] text-[#FAF7F2]'
+                  : 'bg-[#F3EFE6] text-[#183B32] hover:bg-[#EBE3D3]'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <UserIcon className="w-4 h-4 text-[#C8963E]" />
+                <span>{user ? `Account (${user.email})` : 'Sign In / Register'}</span>
+              </div>
+              {currentPage === 'auth' && <div className="w-2 h-2 rounded-full bg-[#E0B466]" />}
+            </button>
           </div>
 
           <div className="pt-2">
