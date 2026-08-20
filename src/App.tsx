@@ -38,6 +38,7 @@ function AppContent() {
 
   // Generated Active Trip Plan for Dedicated Itinerary Page
   const [activeTripPlan, setActiveTripPlan] = useState<TripPlanResult | null>(null);
+  const [activeSavedTripId, setActiveSavedTripId] = useState<string | null>(null);
 
   // Floating AI Assistant Modal State
   const [isFloatingAiOpen, setIsFloatingAiOpen] = useState(false);
@@ -123,19 +124,26 @@ function AppContent() {
   };
 
   // Called when "Generate My Itinerary" succeeds in TripPlannerPage
-  const handlePlanGenerated = (plan: TripPlanResult, config: {
-    startLocation: string;
-    destination: string;
-    travelMode: TransportMode;
-    days: number;
-    travelers: number;
-    datesText: string;
-    budgetTier: 'budget' | 'moderate' | 'luxury' | 'custom';
-    customBudget?: number;
-    distanceKm?: number;
-    durationText?: string;
-  }) => {
+  const handlePlanGenerated = (
+    plan: TripPlanResult,
+    config: {
+      startLocation: string;
+      destination: string;
+      travelMode: TransportMode;
+      days: number;
+      travelers: number;
+      datesText: string;
+      budgetTier: 'budget' | 'moderate' | 'luxury' | 'custom';
+      customBudget?: number;
+      distanceKm?: number;
+      durationText?: string;
+    },
+    savedTrip?: SavedTrip
+  ) => {
     setActiveTripPlan(plan);
+    if (savedTrip?.id) {
+      setActiveSavedTripId(savedTrip.id);
+    }
     setSelectedStartLocation(config.startLocation);
     setSelectedDestination(config.destination);
     setSelectedTravelMode(config.travelMode);
@@ -152,7 +160,80 @@ function AppContent() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Direct Itinerary View from Saved Trip in History
+  const handleOpenSavedTripInItinerary = (trip: SavedTrip) => {
+    setActiveSavedTripId(trip.id);
+    setSelectedStartLocation(trip.startLocation);
+    setSelectedDestination(trip.destination);
+    if (trip.transportMode) {
+      setSelectedTravelMode(trip.transportMode);
+    }
+    setPlannerTravelers(trip.travelers);
+    const tripDays = trip.days || trip.durationDays || 3;
+    setPlannerDays(tripDays);
+    setPlannerBudgetTier(trip.budgetTier || 'moderate');
+    setPlannerDatesText(trip.travelDates || '');
+    if (trip.customBudget) {
+      setPlannerBudget(trip.customBudget);
+    } else if (trip.budgetBreakdown?.total) {
+      setPlannerBudget(trip.budgetBreakdown.total);
+    } else if (trip.totalPlannedBudget) {
+      setPlannerBudget(trip.totalPlannedBudget);
+    }
+
+    const curated = generateCuratedTripPlan(
+      trip.destination,
+      trip.startLocation,
+      trip.travelDates || `${tripDays} Days`,
+      trip.travelers,
+      trip.selectedPreferences || ['Historical Highlights', 'Local Street Food', 'Scenic Viewpoints'],
+      trip.budgetTier === 'custom' ? 'moderate' : trip.budgetTier || 'moderate'
+    );
+
+    if (trip.dailyItinerary && trip.dailyItinerary.length > 0) {
+      curated.dayWiseItinerary = trip.dailyItinerary;
+    }
+    if (trip.waypoints && trip.waypoints.length > 0) {
+      curated.waypoints = trip.waypoints;
+    }
+    if (trip.accommodationDetails && trip.accommodationDetails.length > 0) {
+      curated.staySuggestions = trip.accommodationDetails.map((a) => ({
+        neighborhood: a.neighborhood || `${trip.destination} Central`,
+        vibe: a.vibe || 'Comfortable Stay',
+        estimatedCostNight: a.estimatedCostNight || '₹3,000 / night',
+      }));
+    }
+    if (trip.foodRecommendations && trip.foodRecommendations.length > 0) {
+      curated.foodRecommendations = trip.foodRecommendations.map((f: any, i: number) => {
+        if (typeof f === 'string') {
+          return {
+            name: f,
+            type: i % 2 === 0 ? 'Heritage Restaurant' : 'Local Eatery',
+            neighborhood: `${trip.destination} Central`,
+            mustTry: `Specialty food in ${trip.destination}`,
+          };
+        }
+        return f;
+      });
+    }
+    if (trip.budgetBreakdown) {
+      curated.estimatedTotalBudget = {
+        stay: trip.budgetBreakdown.accommodation,
+        food: trip.budgetBreakdown.food,
+        transport: trip.budgetBreakdown.transportation,
+        sightseeing: trip.budgetBreakdown.activities,
+        total: trip.budgetBreakdown.total,
+        currency: '₹ INR',
+      };
+    }
+
+    setActiveTripPlan(curated);
+    setCurrentPage('itinerary');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleLoadSavedTripToPlanner = (trip: SavedTrip) => {
+    setActiveSavedTripId(trip.id);
     setSelectedStartLocation(trip.startLocation);
     setSelectedDestination(trip.destination);
     if (trip.transportMode) {
@@ -176,11 +257,14 @@ function AppContent() {
       trip.startLocation,
       trip.travelDates || `${trip.days} Days`,
       trip.travelers,
-      ['Historical Highlights', 'Local Street Food', 'Scenic Viewpoints'],
+      trip.selectedPreferences || ['Historical Highlights', 'Local Street Food', 'Scenic Viewpoints'],
       trip.budgetTier === 'custom' ? 'moderate' : trip.budgetTier || 'moderate'
     );
     if (trip.dailyItinerary && trip.dailyItinerary.length > 0) {
       curated.dayWiseItinerary = trip.dailyItinerary;
+    }
+    if (trip.waypoints && trip.waypoints.length > 0) {
+      curated.waypoints = trip.waypoints;
     }
     if (trip.accommodationDetails && trip.accommodationDetails.length > 0) {
       curated.staySuggestions = trip.accommodationDetails.map((a) => ({
@@ -188,6 +272,19 @@ function AppContent() {
         vibe: a.vibe || 'Comfortable Stay',
         estimatedCostNight: a.estimatedCostNight || '₹3,000 / night',
       }));
+    }
+    if (trip.foodRecommendations && trip.foodRecommendations.length > 0) {
+      curated.foodRecommendations = trip.foodRecommendations.map((f: any, i: number) => {
+        if (typeof f === 'string') {
+          return {
+            name: f,
+            type: i % 2 === 0 ? 'Heritage Restaurant' : 'Local Eatery',
+            neighborhood: `${trip.destination} Central`,
+            mustTry: `Specialty food in ${trip.destination}`,
+          };
+        }
+        return f;
+      });
     }
     setActiveTripPlan(curated);
 
@@ -256,6 +353,7 @@ function AppContent() {
         {currentPage === 'itinerary' && (
           <TripItineraryPage
             plan={activeTripPlan}
+            savedTripId={activeSavedTripId}
             startLocation={selectedStartLocation}
             destination={selectedDestination}
             travelMode={selectedTravelMode}
@@ -294,6 +392,7 @@ function AppContent() {
         {currentPage === 'trip-history' && (
           <TripHistoryPage
             onNavigate={handleNavigate}
+            onOpenTripInItinerary={handleOpenSavedTripInItinerary}
             onSelectTripForPlanning={handleLoadSavedTripToPlanner}
           />
         )}

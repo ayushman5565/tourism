@@ -45,12 +45,14 @@ interface TripHistoryPageProps {
   onNavigate: (page: PageRoute) => void;
   onContinueTrip?: (trip: SavedTrip) => void;
   onSelectTripForPlanning?: (trip: SavedTrip) => void;
+  onOpenTripInItinerary?: (trip: SavedTrip) => void;
 }
 
 export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
   onNavigate,
   onContinueTrip,
   onSelectTripForPlanning,
+  onOpenTripInItinerary,
 }) => {
   const { user } = useAuth();
   const [trips, setTrips] = useState<SavedTrip[]>([]);
@@ -73,8 +75,8 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
   const [memoryLocationTag, setMemoryLocationTag] = useState('');
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
 
-  // Active Tab in Detail Modal: 'itinerary' | 'memories' | 'budget' | 'notes'
-  const [detailTab, setDetailTab] = useState<'itinerary' | 'memories' | 'budget' | 'notes'>('itinerary');
+  // Active Tab in Detail Modal: 'itinerary' | 'budget' | 'food_stays' | 'route' | 'memories' | 'notes'
+  const [detailTab, setDetailTab] = useState<'itinerary' | 'budget' | 'food_stays' | 'route' | 'memories' | 'notes'>('itinerary');
 
   // Load trips on mount and when the authenticated Supabase user changes.
   useEffect(() => {
@@ -377,7 +379,7 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
                     </div>
 
                     {/* Card Actions Footer */}
-                    <div className="pt-3 border-t border-[#F0EBE0] flex items-center justify-between gap-2">
+                    <div className="pt-3 border-t border-[#F0EBE0] flex flex-wrap items-center justify-between gap-2">
                       <button
                         type="button"
                         onClick={(e) => handlePromptDelete(trip, e)}
@@ -388,14 +390,30 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
                         <span className="text-[11px] font-medium hidden sm:inline">Delete</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={(e) => handleContinue(trip, e)}
-                        className="px-3.5 py-1.5 rounded-xl bg-[#EFE9DE] hover:bg-[#183B32] text-[#183B32] hover:text-[#FAF7F2] text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
-                      >
-                        <span>Reopen in Planner</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {onOpenTripInItinerary && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenTripInItinerary(trip);
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-[#183B32] hover:bg-[#245246] text-[#FAF7F2] text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                          >
+                            <Compass className="w-3 h-3 text-[#E0B466]" />
+                            <span>View Itinerary</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={(e) => handleContinue(trip, e)}
+                          className="px-3 py-1.5 rounded-xl bg-[#EFE9DE] hover:bg-[#E2DACB] text-[#183B32] text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <span>Planner</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -509,8 +527,10 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
               <div className="flex flex-wrap items-center gap-2 mt-6 pt-4 border-t border-white/15">
                 {[
                   { id: 'itinerary', label: 'Daily Itinerary', icon: <Compass className="w-3.5 h-3.5" /> },
+                  { id: 'budget', label: 'Budget & Expenses', icon: <IndianRupee className="w-3.5 h-3.5" /> },
+                  { id: 'food_stays', label: 'Food & Stays', icon: <Utensils className="w-3.5 h-3.5" /> },
+                  { id: 'route', label: 'Route & Waypoints', icon: <Navigation className="w-3.5 h-3.5" /> },
                   { id: 'memories', label: `Memories (${selectedTrip.memories?.length || 0})`, icon: <Camera className="w-3.5 h-3.5" /> },
-                  { id: 'budget', label: 'Budget & Spending', icon: <IndianRupee className="w-3.5 h-3.5" /> },
                   { id: 'notes', label: 'Trip Notes', icon: <FileText className="w-3.5 h-3.5" /> },
                 ].map((tab) => (
                   <button
@@ -552,17 +572,17 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-[#57605B]">
-                          <div className="bg-[#FFFFFF] p-3 rounded-xl border border-[#EAE3D6]">
-                            <span className="font-bold text-[#183B32] block mb-1">🌅 Morning</span>
-                            {day.morning}
+                          <div className="bg-[#FFFFFF] p-3.5 rounded-xl border border-[#EAE3D6] space-y-1">
+                            <span className="font-bold text-[#183B32] block">🌅 Morning</span>
+                            <p className="leading-relaxed">{day.morning}</p>
                           </div>
-                          <div className="bg-[#FFFFFF] p-3 rounded-xl border border-[#EAE3D6]">
-                            <span className="font-bold text-[#183B32] block mb-1">☀️ Afternoon</span>
-                            {day.afternoon}
+                          <div className="bg-[#FFFFFF] p-3.5 rounded-xl border border-[#EAE3D6] space-y-1">
+                            <span className="font-bold text-[#183B32] block">☀️ Afternoon</span>
+                            <p className="leading-relaxed">{day.afternoon}</p>
                           </div>
-                          <div className="bg-[#FFFFFF] p-3 rounded-xl border border-[#EAE3D6]">
-                            <span className="font-bold text-[#183B32] block mb-1">🌙 Evening</span>
-                            {day.evening}
+                          <div className="bg-[#FFFFFF] p-3.5 rounded-xl border border-[#EAE3D6] space-y-1">
+                            <span className="font-bold text-[#183B32] block">🌙 Evening</span>
+                            <p className="leading-relaxed">{day.evening}</p>
                           </div>
                         </div>
 
@@ -579,29 +599,290 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
                       No custom day-by-day itinerary recorded for this trip.
                     </p>
                   )}
-
-                  {/* Accommodation preview */}
-                  {selectedTrip.accommodationDetails && selectedTrip.accommodationDetails.length > 0 && (
-                    <div className="p-4 rounded-2xl bg-[#FFFFFF] border border-[#E5DFD3] space-y-2 mt-4">
-                      <h4 className="font-serif font-bold text-sm text-[#183B32] flex items-center gap-1.5">
-                        <Bed className="w-4 h-4 text-[#183B32]" />
-                        Stay Recommendations
-                      </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                        {selectedTrip.accommodationDetails.map((stay, idx) => (
-                          <div key={idx} className="p-2.5 rounded-xl bg-[#FAF7F2] border border-[#EAE3D6]">
-                            <div className="font-bold text-[#183B32]">{stay.neighborhood}</div>
-                            <div className="text-[11px] text-[#57605B]">{stay.vibe}</div>
-                            <div className="text-[10px] font-semibold text-[#C8963E] mt-0.5">{stay.estimatedCostNight}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
-              {/* TAB 2: MEMORIES & PHOTOS */}
+              {/* TAB 2: BUDGET & EXPENSES */}
+              {detailTab === 'budget' && (
+                <div className="space-y-6">
+                  {/* Budget KPI Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                    <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6]">
+                      <span className="text-[10px] text-[#8C938E] uppercase font-bold block">Planned Budget</span>
+                      <span className="font-serif font-bold text-lg sm:text-xl text-[#183B32] mt-1 block">
+                        ₹{(selectedTrip.budgetBreakdown?.total || selectedTrip.totalPlannedBudget || selectedTrip.customBudget || 0).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6]">
+                      <span className="text-[10px] text-[#8C938E] uppercase font-bold block">Actual Spending</span>
+                      <span className="font-serif font-bold text-lg sm:text-xl text-[#183B32] mt-1 block">
+                        ₹{(selectedTrip.actualSpending || 0).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6]">
+                      <span className="text-[10px] text-[#8C938E] uppercase font-bold block">Remaining Budget</span>
+                      {(() => {
+                        const total = selectedTrip.budgetBreakdown?.total || selectedTrip.totalPlannedBudget || selectedTrip.customBudget || 0;
+                        const spent = selectedTrip.actualSpending || 0;
+                        const diff = total - spent;
+                        return (
+                          <span className={`font-serif font-bold text-lg sm:text-xl mt-1 block ${diff >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                            ₹{diff.toLocaleString()}
+                          </span>
+                        );
+                      })()}
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6]">
+                      <span className="text-[10px] text-[#8C938E] uppercase font-bold block">Per Person</span>
+                      <span className="font-serif font-bold text-lg sm:text-xl text-[#C8963E] mt-1 block">
+                        ₹{Math.round(((selectedTrip.budgetBreakdown?.total || selectedTrip.customBudget || 0) / Math.max(1, selectedTrip.travelers))).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Planned Breakdown Details */}
+                  {selectedTrip.budgetBreakdown && (
+                    <div className="p-5 rounded-2xl bg-[#FFFFFF] border border-[#E5DFD3] space-y-4">
+                      <div className="flex items-center justify-between pb-2 border-b border-[#F0EBE0]">
+                        <h4 className="font-serif font-bold text-sm text-[#183B32] flex items-center gap-1.5">
+                          <IndianRupee className="w-4 h-4 text-[#C8963E]" />
+                          Complete Expense & Cost Breakdown
+                        </h4>
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#FAF7F2] text-[#183B32] border border-[#E2DACB]">
+                          {selectedTrip.budgetTier ? `${selectedTrip.budgetTier.toUpperCase()} TIER` : 'PLANNED'}
+                        </span>
+                      </div>
+
+                      <div className="space-y-3 text-xs text-[#57605B]">
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#FAF7F2] border border-[#EAE3D6]">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">🏨</span>
+                            <div>
+                              <span className="font-bold text-[#183B32] block">Accommodation</span>
+                              <span className="text-[10px] text-[#8C938E]">Estimated hotels / stays for {selectedTrip.days} days</span>
+                            </div>
+                          </div>
+                          <span className="font-bold text-[#183B32] text-sm">₹{selectedTrip.budgetBreakdown.accommodation.toLocaleString()}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#FAF7F2] border border-[#EAE3D6]">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">🍽️</span>
+                            <div>
+                              <span className="font-bold text-[#183B32] block">Food & Dining</span>
+                              <span className="text-[10px] text-[#8C938E]">Local delicacies, dining & refreshments</span>
+                            </div>
+                          </div>
+                          <span className="font-bold text-[#183B32] text-sm">₹{selectedTrip.budgetBreakdown.food.toLocaleString()}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#FAF7F2] border border-[#EAE3D6]">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">🚗</span>
+                            <div>
+                              <span className="font-bold text-[#183B32] block">Transportation</span>
+                              <span className="text-[10px] text-[#8C938E]">Fuel, cab, rail, airfare or local commute</span>
+                            </div>
+                          </div>
+                          <span className="font-bold text-[#183B32] text-sm">₹{selectedTrip.budgetBreakdown.transportation.toLocaleString()}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#FAF7F2] border border-[#EAE3D6]">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">🎟️</span>
+                            <div>
+                              <span className="font-bold text-[#183B32] block">Sightseeing & Activities</span>
+                              <span className="text-[10px] text-[#8C938E]">Monument tickets, guide fees, permits & experiences</span>
+                            </div>
+                          </div>
+                          <span className="font-bold text-[#183B32] text-sm">₹{selectedTrip.budgetBreakdown.activities.toLocaleString()}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#FAF7F2] border border-[#EAE3D6]">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">🛡️</span>
+                            <div>
+                              <span className="font-bold text-[#183B32] block">Emergency Reserve & Buffer</span>
+                              <span className="text-[10px] text-[#8C938E]">Contingency fund for smooth travel</span>
+                            </div>
+                          </div>
+                          <span className="font-bold text-[#183B32] text-sm">₹{selectedTrip.budgetBreakdown.miscellaneous.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Update Actual Spending Field */}
+                  <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6] space-y-3">
+                    <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
+                      Record / Log Actual Expense Total
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={editActualSpending}
+                        onChange={(e) => setEditActualSpending(e.target.value)}
+                        placeholder="e.g. 29500"
+                        className="w-full px-3.5 py-2 rounded-xl bg-[#FFFFFF] border border-[#E2DACB] text-xs font-medium text-[#202422] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveTripEdits}
+                        className="px-4 py-2 rounded-xl bg-[#183B32] hover:bg-[#245246] text-[#FAF7F2] text-xs font-bold shrink-0 cursor-pointer shadow-xs"
+                      >
+                        Update Spending
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: FOOD & STAYS */}
+              {detailTab === 'food_stays' && (
+                <div className="space-y-6">
+                  {/* Food Suggestions */}
+                  <div className="space-y-3">
+                    <h4 className="font-serif font-bold text-base text-[#183B32] flex items-center gap-2">
+                      <Utensils className="w-4 h-4 text-[#D96E37]" />
+                      Authentic Culinary Highlights
+                    </h4>
+                    {selectedTrip.foodRecommendations && selectedTrip.foodRecommendations.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {selectedTrip.foodRecommendations.map((food: any, idx: number) => {
+                          const isObj = typeof food === 'object' && food !== null;
+                          const name = isObj ? food.name : String(food);
+                          const type = isObj ? food.type : 'Local Specialty';
+                          const neighborhood = isObj ? food.neighborhood : selectedTrip.destination;
+                          const mustTry = isObj ? food.mustTry : `Must try when in ${selectedTrip.destination}`;
+
+                          return (
+                            <div key={idx} className="p-3.5 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6] space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-xs text-[#183B32]">{name}</span>
+                                <span className="text-[10px] font-semibold text-[#D96E37] px-2 py-0.5 rounded-full bg-[#FFFFFF] border border-[#EAE3D6]">
+                                  {type}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-[#57605B]">{neighborhood}</div>
+                              <p className="text-[11px] text-[#202422] italic">{mustTry}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[#8C938E] italic bg-[#FAF7F2] p-4 rounded-xl border border-[#EAE3D6]">
+                        No food recommendations recorded.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Accommodation Suggestions */}
+                  <div className="space-y-3">
+                    <h4 className="font-serif font-bold text-base text-[#183B32] flex items-center gap-2">
+                      <Bed className="w-4 h-4 text-[#183B32]" />
+                      Stay & Accommodation Recommendations
+                    </h4>
+                    {selectedTrip.accommodationDetails && selectedTrip.accommodationDetails.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {selectedTrip.accommodationDetails.map((stay, idx) => (
+                          <div key={idx} className="p-3.5 rounded-2xl bg-[#FFFFFF] border border-[#EAE3D6] space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-xs text-[#183B32]">{stay.neighborhood}</span>
+                              <span className="text-[10px] font-bold text-[#C8963E] px-2 py-0.5 rounded-full bg-[#FAF7F2] border border-[#EAE3D6]">
+                                {stay.estimatedCostNight}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-[#57605B]">{stay.vibe}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[#8C938E] italic bg-[#FAF7F2] p-4 rounded-xl border border-[#EAE3D6]">
+                        No stay suggestions recorded.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: ROUTE & WAYPOINTS */}
+              {detailTab === 'route' && (
+                <div className="space-y-6">
+                  {/* Transport summary */}
+                  <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6] space-y-2">
+                    <span className="text-[10px] text-[#8C938E] font-bold uppercase tracking-wider block">
+                      Transport & Route Details
+                    </span>
+                    <div className="flex flex-wrap items-center gap-3 text-xs">
+                      <span className="px-2.5 py-1 rounded-xl bg-[#183B32] text-[#FAF7F2] font-semibold uppercase">
+                        Mode: {selectedTrip.transportMode || 'Car'}
+                      </span>
+                      {selectedTrip.transportDetails?.distanceText && (
+                        <span className="px-2.5 py-1 rounded-xl bg-[#FFFFFF] border border-[#EAE3D6] text-[#183B32] font-medium">
+                          Distance: {selectedTrip.transportDetails.distanceText}
+                        </span>
+                      )}
+                      {selectedTrip.transportDetails?.durationText && (
+                        <span className="px-2.5 py-1 rounded-xl bg-[#FFFFFF] border border-[#EAE3D6] text-[#183B32] font-medium">
+                          Duration: {selectedTrip.transportDetails.durationText}
+                        </span>
+                      )}
+                      {selectedTrip.transportDetails?.estimatedCost && (
+                        <span className="px-2.5 py-1 rounded-xl bg-[#FFFFFF] border border-[#EAE3D6] text-[#C8963E] font-semibold">
+                          Transit Cost: {selectedTrip.transportDetails.estimatedCost}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Waypoints list */}
+                  <div className="space-y-3">
+                    <h4 className="font-serif font-bold text-base text-[#183B32] flex items-center gap-2">
+                      <Navigation className="w-4 h-4 text-[#183B32]" />
+                      Key Places & Waypoints
+                    </h4>
+                    {selectedTrip.waypoints && selectedTrip.waypoints.length > 0 ? (
+                      <div className="space-y-2.5">
+                        {selectedTrip.waypoints.map((wp: any, idx: number) => (
+                          <div key={idx} className="p-3.5 rounded-2xl bg-[#FFFFFF] border border-[#EAE3D6] flex items-start gap-3">
+                            <span className="w-6 h-6 rounded-full bg-[#183B32] text-[#FAF7F2] font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                              {idx + 1}
+                            </span>
+                            <div className="space-y-1 flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-xs text-[#183B32]">{wp.name}</span>
+                                {wp.category && (
+                                  <span className="text-[10px] font-semibold text-[#8C938E] px-2 py-0.5 rounded-full bg-[#FAF7F2] border border-[#EAE3D6]">
+                                    {wp.category}
+                                  </span>
+                                )}
+                              </div>
+                              {wp.description && (
+                                <p className="text-[11px] text-[#57605B] leading-relaxed">{wp.description}</p>
+                              )}
+                              {wp.recommendedDuration && (
+                                <span className="text-[10px] text-[#C8963E] font-semibold flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {wp.recommendedDuration}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-[#8C938E] italic bg-[#FAF7F2] p-4 rounded-xl border border-[#EAE3D6]">
+                        No specific waypoints listed for this route.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 5: MEMORIES & PHOTOS */}
               {detailTab === 'memories' && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
@@ -687,95 +968,7 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
                 </div>
               )}
 
-              {/* TAB 3: BUDGET & SPENDING */}
-              {detailTab === 'budget' && (
-                <div className="space-y-6">
-                  {/* Budget Overview Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
-                    <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6]">
-                      <span className="text-[10px] text-[#8C938E] uppercase font-bold block">Planned Budget</span>
-                      <span className="font-serif font-bold text-xl text-[#183B32] mt-1 block">
-                        ₹{(selectedTrip.budgetBreakdown?.total || selectedTrip.customBudget || 0).toLocaleString()}
-                      </span>
-                    </div>
-
-                    <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6]">
-                      <span className="text-[10px] text-[#8C938E] uppercase font-bold block">Actual Spending</span>
-                      <span className="font-serif font-bold text-xl text-[#183B32] mt-1 block">
-                        ₹{(selectedTrip.actualSpending || 0).toLocaleString()}
-                      </span>
-                    </div>
-
-                    <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6]">
-                      <span className="text-[10px] text-[#8C938E] uppercase font-bold block">Remaining / Surplus</span>
-                      <span className={`font-serif font-bold text-xl mt-1 block ${
-                        (selectedTrip.budgetBreakdown?.total || 0) - (selectedTrip.actualSpending || 0) >= 0
-                          ? 'text-green-700'
-                          : 'text-red-600'
-                      }`}>
-                        ₹{((selectedTrip.budgetBreakdown?.total || selectedTrip.customBudget || 0) - (selectedTrip.actualSpending || 0)).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Planned Breakdown Details */}
-                  {selectedTrip.budgetBreakdown && (
-                    <div className="p-5 rounded-2xl bg-[#FFFFFF] border border-[#E5DFD3] space-y-3">
-                      <h4 className="font-serif font-bold text-sm text-[#183B32]">
-                        Planned Category Allocation
-                      </h4>
-
-                      <div className="space-y-2 text-xs text-[#57605B]">
-                        <div className="flex justify-between">
-                          <span>🏨 Accommodation:</span>
-                          <span className="font-semibold text-[#183B32]">₹{selectedTrip.budgetBreakdown.accommodation.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>🍽️ Food & Dining:</span>
-                          <span className="font-semibold text-[#183B32]">₹{selectedTrip.budgetBreakdown.food.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>🚗 Transportation:</span>
-                          <span className="font-semibold text-[#183B32]">₹{selectedTrip.budgetBreakdown.transportation.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>🎟️ Sightseeing & Activities:</span>
-                          <span className="font-semibold text-[#183B32]">₹{selectedTrip.budgetBreakdown.activities.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>🛡️ Miscellaneous / Buffer:</span>
-                          <span className="font-semibold text-[#183B32]">₹{selectedTrip.budgetBreakdown.miscellaneous.toLocaleString()}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Update Actual Spending Field */}
-                  <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6] space-y-3">
-                    <label className="block text-xs font-bold text-[#183B32] uppercase tracking-wider">
-                      Record Actual Expense Total
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="number"
-                        value={editActualSpending}
-                        onChange={(e) => setEditActualSpending(e.target.value)}
-                        placeholder="e.g. 29500"
-                        className="w-full px-3.5 py-2 rounded-xl bg-[#FFFFFF] border border-[#E2DACB] text-xs font-medium text-[#202422] focus:outline-none focus:ring-2 focus:ring-[#183B32]/30"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSaveTripEdits}
-                        className="px-4 py-2 rounded-xl bg-[#183B32] text-[#FAF7F2] text-xs font-bold shrink-0 cursor-pointer"
-                      >
-                        Update Spending
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 4: TRIP NOTES */}
+              {/* TAB 6: TRIP NOTES */}
               {detailTab === 'notes' && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -816,23 +1009,40 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
               <button
                 type="button"
                 onClick={() => handlePromptDelete(selectedTrip)}
-                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[#FFFFFF] border border-[#E2DACB] hover:bg-[#FFEBEE] hover:border-[#EF9A9A] text-xs font-semibold text-[#C62828] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#FFFFFF] border border-[#E2DACB] hover:bg-[#FFEBEE] hover:border-[#EF9A9A] text-xs font-semibold text-[#C62828] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Delete Trip</span>
               </button>
 
-              <button
-                type="button"
-                onClick={(e) => {
-                  setSelectedTrip(null);
-                  handleContinue(selectedTrip, e);
-                }}
-                className="w-full sm:w-auto px-6 py-2.5 rounded-2xl bg-[#D96E37] hover:bg-[#C25D28] text-[#FAF7F2] text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
-              >
-                <span>Continue / Load in Trip Planner</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    setSelectedTrip(null);
+                    handleContinue(selectedTrip, e);
+                  }}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-[#EFE9DE] hover:bg-[#E2DACB] text-[#183B32] text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <span>Load in Planner</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+
+                {onOpenTripInItinerary && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tripToOpen = selectedTrip;
+                      setSelectedTrip(null);
+                      onOpenTripInItinerary(tripToOpen);
+                    }}
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-2xl bg-[#183B32] hover:bg-[#245246] text-[#FAF7F2] text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Compass className="w-3.5 h-3.5 text-[#E0B466]" />
+                    <span>Open Full Interactive Itinerary</span>
+                  </button>
+                )}
+              </div>
             </div>
 
           </div>

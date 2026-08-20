@@ -37,7 +37,8 @@ import {
 import { TripPlanResult, PageRoute, TransportOption, TransportMode, SavedTrip } from '../types';
 import { generateCuratedTripPlan, calculateDestinationBudgetBreakdown } from '../data/destinationsData';
 import { TourismMap } from '../components/TourismMap';
-import { saveTrip } from '../utils/tripStorage';
+import { saveTrip, syncTripToSupabase } from '../utils/tripStorage';
+import { useAuth } from '../context/AuthContext';
 
 export interface TripPlannerPageProps {
   initialStartLocation?: string;
@@ -49,18 +50,22 @@ export interface TripPlannerPageProps {
   initialTravelers?: number;
   initialDays?: number;
   onNavigate: (page: PageRoute) => void;
-  onPlanGenerated?: (plan: TripPlanResult, config: {
-    startLocation: string;
-    destination: string;
-    travelMode: TransportMode;
-    days: number;
-    travelers: number;
-    datesText: string;
-    budgetTier: 'budget' | 'moderate' | 'luxury' | 'custom';
-    customBudget?: number;
-    distanceKm?: number;
-    durationText?: string;
-  }) => void;
+  onPlanGenerated?: (
+    plan: TripPlanResult,
+    config: {
+      startLocation: string;
+      destination: string;
+      travelMode: TransportMode;
+      days: number;
+      travelers: number;
+      datesText: string;
+      budgetTier: 'budget' | 'moderate' | 'luxury' | 'custom';
+      customBudget?: number;
+      distanceKm?: number;
+      durationText?: string;
+    },
+    savedTrip?: SavedTrip
+  ) => void;
   onStartGroupTrip?: (destination: string) => void;
 }
 
@@ -166,6 +171,7 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
   onPlanGenerated,
   onStartGroupTrip,
 }) => {
+  const { user } = useAuth();
   // 1. Core Inputs
   const [startLocation, setStartLocation] = useState(initialStartLocation);
   const [destination, setDestination] = useState(initialDestination);
@@ -448,7 +454,70 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
       setIsGenerating(false);
     }
 
-    // Pass the generated plan and trip configuration to parent and navigate to the new dedicated Itinerary page!
+    // Automatically archive the newly generated trip with all its itinerary & expense details into the database
+    const tripUniqueId = `trip_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const tripTitle = `${destination.trim()} Trip (${days} Days)`;
+    const displayDist = calculatedDistanceKm ? `${calculatedDistanceKm} km` : chosenTransport.distanceText;
+    const displayDur = calculatedDurationText ? calculatedDurationText : chosenTransport.durationText;
+
+    const fullSavedTrip: SavedTrip = {
+      id: tripUniqueId,
+      customName: tripTitle,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      startLocation: startLocation.trim(),
+      destination: destination.trim(),
+      travelers,
+      days,
+      durationDays: days,
+      travelDates: formattedDates,
+      budgetTier,
+      customBudget: parsedCustomBudget,
+      selectedPreferences: selectedInterests,
+      transportMode: selectedTransportMode,
+      transportDetails: {
+        label: chosenTransport.label,
+        distanceText: displayDist,
+        durationText: displayDur,
+        estimatedCost: chosenTransport.estimatedCostRange,
+      },
+      dailyItinerary: finalPlan.dayWiseItinerary || [],
+      waypoints: finalPlan.waypoints || [],
+      placesVisited: (finalPlan.waypoints || []).map((w) => w.name),
+      foodRecommendations: finalPlan.foodRecommendations || [],
+      accommodationDetails: finalPlan.staySuggestions || [],
+      budgetBreakdown: finalPlan.estimatedTotalBudget
+        ? {
+            accommodation: finalPlan.estimatedTotalBudget.stay,
+            food: finalPlan.estimatedTotalBudget.food,
+            transportation: finalPlan.estimatedTotalBudget.transport,
+            activities: finalPlan.estimatedTotalBudget.sightseeing,
+            miscellaneous: Math.max(0, finalPlan.estimatedTotalBudget.total - (finalPlan.estimatedTotalBudget.stay + finalPlan.estimatedTotalBudget.food + finalPlan.estimatedTotalBudget.transport + finalPlan.estimatedTotalBudget.sightseeing)),
+            total: finalPlan.estimatedTotalBudget.total,
+            costPerPerson: Math.round(finalPlan.estimatedTotalBudget.total / (travelers || 1)),
+            remainingBudget: parsedCustomBudget ? Math.max(0, parsedCustomBudget - finalPlan.estimatedTotalBudget.total) : 0,
+            currency: 'INR',
+          }
+        : calculateDestinationBudgetBreakdown({
+            destination: destination.trim(),
+            travelers,
+            days,
+            budgetTier,
+            customBudget: parsedCustomBudget,
+          }),
+      totalPlannedBudget: finalPlan.estimatedTotalBudget?.total || 0,
+      actualSpending: 0,
+      notes: `Planned via Trip Planner for ${destination.trim()} (${days} days, ${travelers} travelers).`,
+      memories: [],
+    };
+
+    // Save to LocalStorage & Supabase Database immediately
+    saveTrip(fullSavedTrip, user?.uid);
+    if (user?.uid) {
+      void syncTripToSupabase(fullSavedTrip, user.uid);
+    }
+
+    // Pass the generated plan, configuration, and saved trip to parent and navigate to the dedicated Itinerary page!
     if (onPlanGenerated) {
       onPlanGenerated(finalPlan, {
         startLocation: startLocation.trim(),
@@ -461,7 +530,7 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
         customBudget: parsedCustomBudget,
         distanceKm: calculatedDistanceKm,
         durationText: calculatedDurationText,
-      });
+      }, fullSavedTrip);
     }
 
     onNavigate('itinerary');

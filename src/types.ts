@@ -61,8 +61,14 @@ export interface SavedTrip {
   }[];
   dailyItinerary: DayItinerary[];
   placesVisited?: string[];
+  waypoints?: RouteWaypoint[];
   activities?: string[];
-  foodRecommendations?: string[];
+  foodRecommendations?: {
+    name: string;
+    type: string;
+    neighborhood: string;
+    mustTry: string;
+  }[] | string[];
   budgetBreakdown: BudgetBreakdown;
   totalPlannedBudget?: number;
   actualSpending?: number;
