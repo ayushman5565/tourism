@@ -54,6 +54,8 @@ export interface SavedTrip {
     durationText?: string;
     estimatedCost?: string;
   };
+  /** Full generated itinerary, retained so a saved trip can be restored without regeneration. */
+  generatedPlan?: TripPlanResult;
   accommodationDetails?: {
     neighborhood?: string;
     vibe?: string;

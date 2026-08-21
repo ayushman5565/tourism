@@ -37,7 +37,7 @@ import {
 import { TripPlanResult, PageRoute, TransportOption, TransportMode, SavedTrip } from '../types';
 import { generateCuratedTripPlan, calculateDestinationBudgetBreakdown } from '../data/destinationsData';
 import { TourismMap } from '../components/TourismMap';
-import { saveTrip, syncTripToSupabase } from '../utils/tripStorage';
+import { saveTrip } from '../utils/tripStorage';
 import { useAuth } from '../context/AuthContext';
 
 export interface TripPlannerPageProps {
@@ -195,6 +195,7 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
 
   // Loading generation state
   const [isGenerating, setIsGenerating] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Dynamic route data from live calculation
   const [calculatedDistanceKm, setCalculatedDistanceKm] = useState<number | undefined>(initialDistanceKm);
@@ -332,6 +333,7 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
     if (!destination.trim() || !startLocation.trim()) return;
 
     setIsGenerating(true);
+    setSaveError(null);
 
     const chosenTransport = currentSelectedTransport;
     const formattedDates = datesText.trim() ? datesText.trim() : `${days} Days`;
@@ -481,6 +483,7 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
         durationText: displayDur,
         estimatedCost: chosenTransport.estimatedCostRange,
       },
+      generatedPlan: finalPlan,
       dailyItinerary: finalPlan.dayWiseItinerary || [],
       waypoints: finalPlan.waypoints || [],
       placesVisited: (finalPlan.waypoints || []).map((w) => w.name),
@@ -511,10 +514,12 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
       memories: [],
     };
 
-    // Save to LocalStorage & Supabase Database immediately
-    saveTrip(fullSavedTrip, user?.uid);
-    if (user?.uid) {
-      void syncTripToSupabase(fullSavedTrip, user.uid);
+    // Persist before moving to the itinerary so every generated trip exists in Supabase.
+    try {
+      await saveTrip(fullSavedTrip, user?.uid);
+    } catch (error: any) {
+      setSaveError(error.message || 'Unable to save this trip to Supabase. Please try again.');
+      return;
     }
 
     // Pass the generated plan, configuration, and saved trip to parent and navigate to the dedicated Itinerary page!
@@ -546,6 +551,13 @@ export const TripPlannerPage: React.FC<TripPlannerPageProps> = ({
 
   return (
     <div className="min-h-screen bg-peaceful-bg-pattern text-[#202422] pb-24">
+      {saveError && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5">
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {saveError}
+          </div>
+        </div>
+      )}
       
       {/* 1. Header Banner */}
       <div className="bg-[#FAF7F2] border-b border-[#EAE3D6] py-10">
