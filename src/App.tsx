@@ -18,6 +18,7 @@ import { PageRoute, TransportMode, SavedTrip, TripPlanResult } from './types';
 import { Sparkles, Compass } from 'lucide-react';
 import { generateCuratedTripPlan } from './data/destinationsData';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { isSupabaseConfigured } from './lib/supabase';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -45,6 +46,20 @@ function AppContent() {
 
   // Track if initial landing redirect has happened
   const [initialRedirectDone, setInitialRedirectDone] = useState(false);
+
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="min-h-screen bg-[#FAF7F2] flex items-center justify-center p-6">
+        <div className="max-w-lg rounded-3xl border border-red-200 bg-white p-8 text-center shadow-sm">
+          <h1 className="font-serif text-2xl font-bold text-[#183B32]">Supabase configuration required</h1>
+          <p className="mt-3 text-sm leading-relaxed text-[#57605B]">
+            TripTale will not use browser storage for trips. Add valid VITE_SUPABASE_URL and
+            VITE_SUPABASE_PUBLISHABLE_KEY values, then restart the development server.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     if (!loading) {
