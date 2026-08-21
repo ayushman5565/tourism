@@ -15,10 +15,11 @@ import { EmergencyHubPage } from './pages/EmergencyHubPage';
 import { AuthPage } from './pages/AuthPage';
 import { AiTravelAssistant } from './components/AiTravelAssistant';
 import { PageRoute, TransportMode, SavedTrip, TripPlanResult } from './types';
-import { Sparkles, Compass } from 'lucide-react';
+import { Sparkles, Compass, CheckCircle2, XCircle, X } from 'lucide-react';
 import { generateCuratedTripPlan } from './data/destinationsData';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { isSupabaseConfigured } from './lib/supabase';
+import { handleGoogleDriveCallback } from './utils/googleDrive';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -46,6 +47,39 @@ function AppContent() {
 
   // Track if initial landing redirect has happened
   const [initialRedirectDone, setInitialRedirectDone] = useState(false);
+
+  // Google Drive OAuth callback banner
+  const [gdriveBanner, setGdriveBanner] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    const pathname = window.location.pathname;
+    const hash = window.location.hash;
+    const isCallback = pathname === '/google-drive-callback' || (hash && hash.includes('access_token='));
+
+    if (isCallback) {
+      const creds = handleGoogleDriveCallback(hash || window.location.hash);
+      window.history.replaceState({}, document.title, '/');
+      setGdriveBanner(
+        creds
+          ? { type: 'success', text: 'Google Drive connected successfully. Your photos & videos will now backup automatically.' }
+          : { type: 'error', text: 'Google Drive connection failed or was denied. Please try again from the profile menu.' }
+      );
+      const t = setTimeout(() => setGdriveBanner(null), 5500);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'triptale_google_drive_credentials' && e.newValue && !gdriveBanner) {
+        setGdriveBanner({ type: 'success', text: 'Google Drive connected.' });
+        const t = setTimeout(() => setGdriveBanner(null), 3000);
+        return () => clearTimeout(t);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [gdriveBanner]);
 
   if (!isSupabaseConfigured) {
     return (
@@ -322,6 +356,38 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#202422] flex flex-col selection:bg-[#183B32] selection:text-[#FAF7F2] relative">
+
+      {gdriveBanner && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] rounded-2xl shadow-2xl border px-5 py-3.5 max-w-lg w-[92%] animate-fade-in flex items-start gap-3 ${
+          gdriveBanner.type === 'success'
+            ? 'bg-white border-emerald-200'
+            : 'bg-white border-rose-200'
+        }`}>
+          <div className={`mt-0.5 w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+            gdriveBanner.type === 'success' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+          }`}>
+            {gdriveBanner.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4" />
+            ) : (
+              <XCircle className="w-4 h-4" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className={`text-sm font-semibold ${
+              gdriveBanner.type === 'success' ? 'text-emerald-900' : 'text-rose-900'
+            }`}>
+              {gdriveBanner.type === 'success' ? 'Google Drive' : 'Connection Issue'}
+            </p>
+            <p className="text-xs mt-0.5 text-[#57605B] leading-relaxed">{gdriveBanner.text}</p>
+          </div>
+          <button
+            onClick={() => setGdriveBanner(null)}
+            className="text-[#8A948E] hover:text-[#183B32] flex-shrink-0 p-1 -m-1 rounded-lg transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       
       {/* 1. Global Navigation Bar */}
       <Navbar
