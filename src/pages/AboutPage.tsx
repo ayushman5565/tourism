@@ -1,6 +1,7 @@
 import React from 'react';
 import { Compass, Sparkles, Heart, Globe, Shield, MapPin, ArrowRight } from 'lucide-react';
 import { PageRoute } from '../types';
+import { TravelShowcaseCarousel } from '../components/TravelShowcaseCarousel';
 
 interface AboutPageProps {
   onNavigate: (page: PageRoute) => void;
@@ -25,8 +26,16 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
       </div>
 
       {/* Main Philosophy Sections */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mt-16 space-y-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 space-y-12">
         
+        {/* Curated 6-Slide Showcase Carousel */}
+        <TravelShowcaseCarousel
+          variant="banner"
+          heightClass="h-[220px] sm:h-[300px]"
+          autoPlayInterval={5000}
+          overlayGradient="dark"
+        />
+
         <div className="bg-[#FFFFFF] p-8 sm:p-12 rounded-3xl border border-[#E5DFD3] shadow-xs space-y-6">
           <h2 className="font-serif font-bold text-2xl text-[#183B32]">
             The Problem with Modern Travel Planning
@@ -89,10 +98,10 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
             Let's begin your tranquil adventure
           </h3>
           <button
-            onClick={() => onNavigate('explore')}
+            onClick={() => onNavigate('planner')}
             className="px-8 py-3.5 rounded-full bg-[#183B32] hover:bg-[#245246] text-[#FAF7F2] text-xs font-bold shadow-md inline-flex items-center gap-2 hover:scale-105 transition-all cursor-pointer"
           >
-            <span>Explore Curated Sanctuaries</span>
+            <span>Start Route Planning</span>
             <ArrowRight className="w-4 h-4 text-[#E0B466]" />
           </button>
         </div>

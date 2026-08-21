@@ -2,6 +2,7 @@ import React from 'react';
 import { Sparkles, Compass, Lightbulb, MapPin, Utensils, Shield, Heart } from 'lucide-react';
 import { AiTravelAssistant } from '../components/AiTravelAssistant';
 import { PageRoute } from '../types';
+import { TravelShowcaseCarousel } from '../components/TravelShowcaseCarousel';
 
 interface AiAssistantPageProps {
   onNavigate: (page: PageRoute) => void;
@@ -31,7 +32,15 @@ export const AiAssistantPage: React.FC<AiAssistantPageProps> = ({
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 space-y-8">
+        {/* Destination Inspiration 6-Slide Carousel */}
+        <TravelShowcaseCarousel
+          variant="banner"
+          heightClass="h-[200px] sm:h-[260px]"
+          autoPlayInterval={5000}
+          overlayGradient="dark"
+        />
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* Main Assistant Chat Window (8 cols) */}
@@ -87,22 +96,22 @@ export const AiAssistantPage: React.FC<AiAssistantPageProps> = ({
               </div>
             </div>
 
-            {/* Quick Action to Explore */}
+            {/* Quick Action to Trip Planner */}
             <div className="bg-gradient-to-br from-[#183B32] to-[#245246] p-6 rounded-3xl text-[#FAF7F2] space-y-3 shadow-md">
               <span className="text-[10px] uppercase tracking-wider font-bold text-[#E0B466]">
-                Need destination ideas first?
+                Ready to map your journey?
               </span>
               <h4 className="font-serif font-bold text-lg leading-snug">
-                Browse our curated sanctuary collection
+                Smart Route & Itinerary Planner
               </h4>
               <p className="text-xs text-[#FAF7F2]/80 leading-relaxed">
-                Explore handpicked world locations with pre-built maps and budget breakdowns.
+                Build daily routes, calculate budgets, and generate interactive maps.
               </p>
               <button
-                onClick={() => onNavigate('explore')}
+                onClick={() => onNavigate('planner')}
                 className="w-full py-2.5 rounded-2xl bg-[#FAF7F2] hover:bg-[#FFFFFF] text-[#183B32] font-bold text-xs shadow-xs transition-colors cursor-pointer"
               >
-                Browse Curated Destinations
+                Open Trip Planner
               </button>
             </div>
 

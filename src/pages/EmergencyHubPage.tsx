@@ -12,7 +12,6 @@ import {
   Compass, 
   ArrowLeft,
   Navigation,
-  Info,
   Car,
   Search,
   ExternalLink,
@@ -20,6 +19,7 @@ import {
 } from 'lucide-react';
 import { INDIA_EMERGENCY_CONTACTS, TRAVEL_SAFETY_TIPS } from '../data/emergencyData';
 import { EmergencyContact, PageRoute } from '../types';
+import { TravelShowcaseCarousel } from '../components/TravelShowcaseCarousel';
 
 interface EmergencyHubPageProps {
   onNavigate: (page: PageRoute) => void;
@@ -141,7 +141,13 @@ export const EmergencyHubPage: React.FC<EmergencyHubPageProps> = ({
     <div className="min-h-screen bg-peaceful-bg-pattern text-[#202422] pb-24">
       
       {/* Header Banner */}
-      <div className="bg-[#183B32] text-[#FAF7F2] py-10 sm:py-14 border-b border-[#245246] relative overflow-hidden">
+      <div className="relative isolate overflow-hidden bg-[#183B32] text-[#FAF7F2] py-10 sm:py-14 border-b border-[#245246]">
+        {/* Background 6-Slide Carousel with Emerald Gradient */}
+        <TravelShowcaseCarousel
+          variant="hero-bg"
+          overlayGradient="emerald"
+          autoPlayInterval={5000}
+        />
         <div className="absolute right-0 top-0 translate-x-12 -translate-y-6 opacity-10 pointer-events-none">
           <ShieldAlert className="w-80 h-80 text-[#FAF7F2]" />
         </div>
@@ -213,14 +219,6 @@ export const EmergencyHubPage: React.FC<EmergencyHubPageProps> = ({
                 </>
               )}
             </button>
-          </div>
-
-          {/* Privacy & Safety Disclaimer */}
-          <div className="p-3.5 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6] flex items-start gap-2.5 text-xs text-[#57605B]">
-            <Info className="w-4 h-4 text-[#C8963E] shrink-0 mt-0.5" />
-            <p>
-              <strong>Privacy Assurance:</strong> TripTale does not share or broadcast your location automatically. GPS coordinates are only acquired when you tap the button above, and you choose when and where to send them.
-            </p>
           </div>
 
           {/* Location Result Display */}

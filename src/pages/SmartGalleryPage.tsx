@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { SmartPlace, GalleryPhoto, PageRoute } from '../types';
 import { loadSmartPlaces, saveSmartPlaces, processImageFile } from '../utils/galleryStorage';
+import { TravelShowcaseCarousel } from '../components/TravelShowcaseCarousel';
 
 interface SmartGalleryPageProps {
   onNavigate: (page: PageRoute) => void;
@@ -461,7 +462,15 @@ export const SmartGalleryPage: React.FC<SmartGalleryPageProps> = ({ onNavigate }
       {/* ========================================== */}
       {/* PLACES LIST / CONTENT */}
       {/* ========================================== */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-10">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 space-y-8">
+        
+        {/* Curated 6-Slide Gallery Showcase Carousel */}
+        <TravelShowcaseCarousel
+          variant="banner"
+          heightClass="h-[220px] sm:h-[280px]"
+          autoPlayInterval={5000}
+          overlayGradient="dark"
+        />
         
         {places.length === 0 ? (
           // 7. EMPTY STATE

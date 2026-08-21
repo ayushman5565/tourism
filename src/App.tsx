@@ -49,9 +49,9 @@ function AppContent() {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        // On initial app load with an active session, send to planner once
+        // On initial app load with an active session, send to home page
         if (!initialRedirectDone) {
-          setCurrentPage('planner');
+          setCurrentPage('home');
           setInitialRedirectDone(true);
         }
       } else {
@@ -107,7 +107,8 @@ function AppContent() {
 
   const handleSelectDestinationForExplore = (destId: string) => {
     setSelectedDestinationId(destId);
-    setCurrentPage('explore');
+    setSelectedDestination(destId);
+    setCurrentPage('planner');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

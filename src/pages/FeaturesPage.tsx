@@ -1,6 +1,7 @@
 import React from 'react';
 import { Compass, Sparkles, MapPin, Users, Navigation, Shield, ArrowRight, Layers, Clock, DollarSign, Utensils, Camera } from 'lucide-react';
 import { PageRoute } from '../types';
+import { TravelShowcaseCarousel } from '../components/TravelShowcaseCarousel';
 
 interface FeaturesPageProps {
   onNavigate: (page: PageRoute) => void;
@@ -37,8 +38,8 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({ onNavigate }) => {
       title: 'Google Maps Navigation & Routing',
       description:
         'Interactive route waypoints with numbered stops, duration recommendations, and one-tap export to Google Maps for turn-by-turn mobile navigation.',
-      cta: 'Explore Destinations',
-      page: 'explore' as PageRoute,
+      cta: 'Try Route Navigation',
+      page: 'planner' as PageRoute,
     },
     {
       icon: <Shield className="w-6 h-6 text-[#183B32]" />,
@@ -67,8 +68,16 @@ export const FeaturesPage: React.FC<FeaturesPageProps> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Feature Grid */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
+      {/* Feature Grid & Visual Showcase */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 space-y-12">
+        {/* Curated 6-Slide Feature Showcase Carousel */}
+        <TravelShowcaseCarousel
+          variant="banner"
+          heightClass="h-[220px] sm:h-[300px]"
+          autoPlayInterval={5000}
+          overlayGradient="dark"
+        />
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {features.map((f, idx) => (
             <div
