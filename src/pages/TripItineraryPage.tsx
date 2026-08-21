@@ -39,6 +39,7 @@ import { BudgetPlanner } from '../components/BudgetPlanner';
 import { saveTrip, syncTripToSupabase } from '../utils/tripStorage';
 import { calculateDestinationBudgetBreakdown } from '../data/destinationsData';
 import { useAuth } from '../context/AuthContext';
+import { TravelShowcaseCarousel } from '../components/TravelShowcaseCarousel';
 
 interface WeatherForecastDay {
   date: string;
@@ -356,8 +357,14 @@ export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
     <div className="min-h-screen bg-[#FAF7F2] text-[#202422] pb-24">
       
       {/* Top Header Banner with Breadcrumbs & Journey Hero */}
-      <div className="bg-[#183B32] text-[#FAF7F2] py-8 sm:py-10 border-b border-[#14322a]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+      <div className="relative isolate overflow-hidden bg-[#183B32] text-[#FAF7F2] py-8 sm:py-10 border-b border-[#14322a]">
+        {/* Background 6-Slide Carousel with Emerald Gradient */}
+        <TravelShowcaseCarousel
+          variant="hero-bg"
+          overlayGradient="emerald"
+          autoPlayInterval={5000}
+        />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 relative z-10">
           
           {/* Breadcrumb Navigation Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs">

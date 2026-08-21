@@ -54,14 +54,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onSelectDestination 
               </li>
               <li>
                 <button
-                  onClick={() => { onNavigate('explore'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className="hover:text-[#183B32] transition-colors cursor-pointer"
-                >
-                  Explore Destinations
-                </button>
-              </li>
-              <li>
-                <button
                   onClick={() => { onNavigate('planner'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   className="hover:text-[#183B32] transition-colors cursor-pointer"
                 >
@@ -120,8 +112,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onSelectDestination 
               <li>
                 <button
                   onClick={() => {
-                    if (onSelectDestination) onSelectDestination('jaipur');
-                    onNavigate('explore');
+                    if (onSelectDestination) onSelectDestination('Jaipur, Rajasthan');
+                    onNavigate('planner');
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   className="hover:text-[#183B32] transition-colors cursor-pointer flex items-center gap-1.5"
@@ -133,8 +125,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onSelectDestination 
               <li>
                 <button
                   onClick={() => {
-                    if (onSelectDestination) onSelectDestination('kyoto');
-                    onNavigate('explore');
+                    if (onSelectDestination) onSelectDestination('Kyoto, Japan');
+                    onNavigate('planner');
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   className="hover:text-[#183B32] transition-colors cursor-pointer flex items-center gap-1.5"
@@ -146,8 +138,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onSelectDestination 
               <li>
                 <button
                   onClick={() => {
-                    if (onSelectDestination) onSelectDestination('amalfi-coast');
-                    onNavigate('explore');
+                    if (onSelectDestination) onSelectDestination('Amalfi Coast, Italy');
+                    onNavigate('planner');
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   className="hover:text-[#183B32] transition-colors cursor-pointer flex items-center gap-1.5"
@@ -159,8 +151,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onSelectDestination 
               <li>
                 <button
                   onClick={() => {
-                    if (onSelectDestination) onSelectDestination('banff');
-                    onNavigate('explore');
+                    if (onSelectDestination) onSelectDestination('Banff National Park');
+                    onNavigate('planner');
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   className="hover:text-[#183B32] transition-colors cursor-pointer flex items-center gap-1.5"
@@ -172,8 +164,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onSelectDestination 
               <li>
                 <button
                   onClick={() => {
-                    if (onSelectDestination) onSelectDestination('swiss-alps');
-                    onNavigate('explore');
+                    if (onSelectDestination) onSelectDestination('Swiss Alps, Switzerland');
+                    onNavigate('planner');
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   className="hover:text-[#183B32] transition-colors cursor-pointer flex items-center gap-1.5"

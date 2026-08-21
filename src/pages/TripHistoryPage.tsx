@@ -40,6 +40,7 @@ import {
   syncTripToSupabase
 } from '../utils/tripStorage';
 import { useAuth } from '../context/AuthContext';
+import { TravelShowcaseCarousel } from '../components/TravelShowcaseCarousel';
 
 interface TripHistoryPageProps {
   onNavigate: (page: PageRoute) => void;
@@ -276,7 +277,15 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 space-y-8">
+        
+        {/* Travel Highlights & Inspiration Carousel */}
+        <TravelShowcaseCarousel
+          variant="banner"
+          heightClass="h-[220px] sm:h-[280px]"
+          autoPlayInterval={5000}
+          overlayGradient="dark"
+        />
         
         {/* Saved Trips List / Grid */}
         {trips.length > 0 ? (

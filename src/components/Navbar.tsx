@@ -36,7 +36,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const navItems: { id: PageRoute; label: string; icon: React.ReactNode }[] = [
     { id: 'home', label: 'Home', icon: <Compass className="w-4 h-4" /> },
-    { id: 'explore', label: 'Explore', icon: <MapPin className="w-4 h-4" /> },
     { id: 'planner', label: 'Trip Planner', icon: <Layers className="w-4 h-4" /> },
     { id: 'trip-history', label: 'Trip History', icon: <History className="w-4 h-4" /> },
     { id: 'emergency', label: 'Emergency Hub', icon: <ShieldAlert className="w-4 h-4" /> },

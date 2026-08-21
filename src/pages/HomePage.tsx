@@ -18,13 +18,7 @@ import { PageRoute, TransportMode } from '../types';
 import { SAMPLE_DESTINATIONS } from '../data/destinationsData';
 import { BudgetPlanner } from '../components/BudgetPlanner';
 import { QuickRouteMap } from '../components/QuickRouteMap';
-
-import indiaCinematicSplitImg from '../assets/images/india_cinematic_split_1787154854837.jpg';
-import vintageTravelCollageImg from '../assets/images/vintage_travel_collage_1787154882264.jpg';
-import indiaHeritageMoodboardImg from '../assets/images/india_heritage_moodboard_1787154911119.jpg';
-import montBlancHikeImg from '../assets/images/mont_blanc_hike_1787154417165.jpg';
-import ladakhCollageImg from '../assets/images/ladakh_travel_collage_1787155692773.jpg';
-import meghalayaCollageImg from '../assets/images/meghalaya_travel_collage_1787155713728.jpg';
+import { SHOWCASE_CAROUSEL_SLIDES } from '../data/carouselData';
 
 interface HomePageProps {
   onNavigate: (page: PageRoute) => void;
@@ -40,44 +34,7 @@ interface HomePageProps {
   onPlanTripWithBudget?: (destination: string, budget: number, travelers: number, days: number) => void;
 }
 
-interface CarouselSlide {
-  id: string;
-  image: string;
-  title: string;
-}
-
-const HERO_CAROUSEL_SLIDES: CarouselSlide[] = [
-  {
-    id: 'india-cinematic-split',
-    image: indiaCinematicSplitImg,
-    title: 'Colors of India',
-  },
-  {
-    id: 'vintage-travel-world',
-    image: vintageTravelCollageImg,
-    title: 'Wanderlust Around The World',
-  },
-  {
-    id: 'india-heritage-moodboard',
-    image: indiaHeritageMoodboardImg,
-    title: 'Saare Jahan Se Acha',
-  },
-  {
-    id: 'mont-blanc-hiking',
-    image: montBlancHikeImg,
-    title: 'Tour du Mont Blanc',
-  },
-  {
-    id: 'ladakh-travel',
-    image: ladakhCollageImg,
-    title: 'Ladakh High Pass',
-  },
-  {
-    id: 'meghalaya-travel',
-    image: meghalayaCollageImg,
-    title: 'Meghalaya Living Roots',
-  },
-];
+const HERO_CAROUSEL_SLIDES = SHOWCASE_CAROUSEL_SLIDES;
 
 type VehicleType = 'car' | 'two_wheeler' | 'bus' | 'train';
 

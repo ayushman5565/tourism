@@ -20,6 +20,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { GroupTrip, GroupExpense, PageRoute } from '../types';
+import { TravelShowcaseCarousel } from '../components/TravelShowcaseCarousel';
 
 interface GroupTripsPageProps {
   initialTripName?: string;
@@ -511,7 +512,14 @@ export const GroupTripsPage: React.FC<GroupTripsPageProps> = ({
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 space-y-8">
-        
+        {/* Destination & Group Adventure 6-Slide Carousel */}
+        <TravelShowcaseCarousel
+          variant="banner"
+          heightClass="h-[200px] sm:h-[260px]"
+          autoPlayInterval={5000}
+          overlayGradient="dark"
+        />
+
         {/* 4. OVERALL GROUP SUMMARY METRICS */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           

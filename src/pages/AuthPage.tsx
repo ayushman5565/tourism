@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { PageRoute } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { TravelShowcaseCarousel } from '../components/TravelShowcaseCarousel';
 
 export interface AuthPageProps {
   onNavigate: (page: PageRoute) => void;
@@ -60,7 +61,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setMode(newMode);
   };
 
-  // 1. Email & Password Sign In -> Immediate redirect to planner
+  // 1. Email & Password Sign In -> Immediate redirect to home
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     clearMessages();
@@ -72,8 +73,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setSubmitting(true);
     try {
       await signInWithEmail(email, password);
-      setSuccessMessage('Welcome back! Opening your Trip Planner...');
-      onNavigate('planner');
+      setSuccessMessage('Welcome back! Opening Home page...');
+      onNavigate('home');
     } catch (err: any) {
       console.error('Sign in error:', err);
       const code = err?.code || '';
@@ -89,7 +90,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
   };
 
-  // 2. Email & Password Sign Up -> Immediate redirect to planner
+  // 2. Email & Password Sign Up -> Immediate redirect to home
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     clearMessages();
@@ -112,8 +113,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     try {
       const newUser = await signUpWithEmail(email, password, displayName);
       if (newUser.emailVerified) {
-        setSuccessMessage('Account created successfully! Opening your Trip Planner...');
-        onNavigate('planner');
+        setSuccessMessage('Account created successfully! Opening Home page...');
+        onNavigate('home');
       } else {
         setSuccessMessage('Account created. Check your inbox to confirm your email, then sign in.');
         setMode('signin');
@@ -135,14 +136,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
   };
 
-  // 3. Google OAuth 1-Click Sign In -> Immediate redirect to planner
+  // 3. Google OAuth 1-Click Sign In -> Immediate redirect to home
   const handleGoogleSignIn = async () => {
     clearMessages();
     setSubmitting(true);
     try {
       await signInWithGoogle();
-      setSuccessMessage('Successfully signed in with Google! Opening your Trip Planner...');
-      onNavigate('planner');
+      setSuccessMessage('Successfully signed in with Google! Opening Home page...');
+      onNavigate('home');
     } catch (err: any) {
       console.error('Google sign in error:', err);
       if (err?.code !== 'auth/popup-closed-by-user') {
@@ -180,7 +181,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   };
 
   return (
-    <div className="max-w-xl mx-auto px-4 sm:px-6 py-12">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
       
       {/* App Header Branding */}
       <div className="text-center mb-8">
@@ -209,8 +210,23 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         </p>
       </div>
 
-      {/* Main Card Container */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#EAE3D6] shadow-sm relative overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left Side (5 cols): Destination Inspiration Carousel Card */}
+        <div className="lg:col-span-5 space-y-4">
+          <TravelShowcaseCarousel
+            variant="card"
+            heightClass="h-[320px] lg:h-[480px]"
+            autoPlayInterval={5000}
+            overlayGradient="dark"
+          />
+          <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#EAE3D6] text-[11px] text-[#57605B] space-y-1">
+            <span className="font-bold text-[#183B32] block">✨ Cloud Sync & Backup</span>
+            Save routes, track member expenses, and record high-res photo memories across all your devices.
+          </div>
+        </div>
+
+        {/* Right Side (7 cols): Main Card Container */}
+        <div className="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-8 border border-[#EAE3D6] shadow-sm relative overflow-hidden">
         
         {/* Decorative Top Accent */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#183B32] via-[#C8963E] to-[#183B32]" />
@@ -548,11 +564,19 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             {/* Quick Action Navigation Buttons */}
             <div className="pt-2 space-y-2.5">
               <button
-                onClick={() => onNavigate('planner')}
+                onClick={() => onNavigate('home')}
                 className="w-full py-3 rounded-2xl bg-[#183B32] hover:bg-[#245246] text-[#FAF7F2] font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all hover:scale-101 active:scale-98 cursor-pointer"
               >
-                <span>Go to Trip Planner</span>
+                <span>Go to Home Page</span>
                 <ArrowRight className="w-3.5 h-3.5 text-[#E0B466]" />
+              </button>
+
+              <button
+                onClick={() => onNavigate('planner')}
+                className="w-full py-2.5 rounded-2xl bg-[#FAF7F2] border border-[#E2DACB] hover:bg-[#EFE9DE] text-[#183B32] font-semibold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#C8963E]" />
+                <span>Go to Trip Planner</span>
               </button>
 
               <button
@@ -575,6 +599,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           </div>
         )}
 
+      </div>
       </div>
 
       {/* Footer Security Badges */}
