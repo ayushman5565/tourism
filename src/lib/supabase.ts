@@ -10,6 +10,9 @@ const isConfigured = Boolean(
   !supabaseUrl.includes('example.com')
 );
 
+/** Exposed so the UI never silently uses the development-only mock client. */
+export const isSupabaseConfigured = isConfigured;
+
 // Fallback client for development when Supabase is not configured. Trip rows
 // intentionally remain in memory so trip data is never persisted in browser storage.
 function createMockSupabaseClient(): SupabaseClient {
