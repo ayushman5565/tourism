@@ -182,7 +182,7 @@ function AppContent() {
       setPlannerBudget(trip.totalPlannedBudget);
     }
 
-    const curated = generateCuratedTripPlan(
+    const curated = trip.generatedPlan ? { ...trip.generatedPlan } : generateCuratedTripPlan(
       trip.destination,
       trip.startLocation,
       trip.travelDates || `${tripDays} Days`,
@@ -253,7 +253,7 @@ function AppContent() {
     }
 
     // Build plan object so it can also be viewed immediately on itinerary page if requested
-    const curated = generateCuratedTripPlan(
+    const curated = trip.generatedPlan ? { ...trip.generatedPlan } : generateCuratedTripPlan(
       trip.destination,
       trip.startLocation,
       trip.travelDates || `${trip.days} Days`,

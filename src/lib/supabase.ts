@@ -10,10 +10,12 @@ const isConfigured = Boolean(
   !supabaseUrl.includes('example.com')
 );
 
-// Fallback in-memory and local-storage client when Supabase is not configured
+// Fallback client for development when Supabase is not configured. Trip rows
+// intentionally remain in memory so trip data is never persisted in browser storage.
 function createMockSupabaseClient(): SupabaseClient {
   const LOCAL_USER_KEY = 'triptale_mock_auth_user';
   const listeners: Array<(event: string, session: any) => void> = [];
+  const mockTables = new Map<string, any[]>();
 
   const getStoredUser = () => {
     try {
@@ -107,21 +109,8 @@ function createMockSupabaseClient(): SupabaseClient {
       },
     },
     from(tableName: string) {
-      const getTableData = (): any[] => {
-        try {
-          const raw = localStorage.getItem(`triptale_db_${tableName}`);
-          return raw ? JSON.parse(raw) : [];
-        } catch {
-          return [];
-        }
-      };
-      const setTableData = (data: any[]) => {
-        try {
-          localStorage.setItem(`triptale_db_${tableName}`, JSON.stringify(data));
-        } catch (e) {
-          console.warn(`Failed to write to mock table ${tableName}:`, e);
-        }
-      };
+      const getTableData = (): any[] => mockTables.get(tableName) || [];
+      const setTableData = (data: any[]) => mockTables.set(tableName, data);
 
       return {
         async upsert(record: any) {

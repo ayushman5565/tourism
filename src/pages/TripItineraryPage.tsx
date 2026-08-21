@@ -36,7 +36,7 @@ import {
 } from '../types';
 import { TourismMap } from '../components/TourismMap';
 import { BudgetPlanner } from '../components/BudgetPlanner';
-import { saveTrip, syncTripToSupabase } from '../utils/tripStorage';
+import { saveTrip } from '../utils/tripStorage';
 import { calculateDestinationBudgetBreakdown } from '../data/destinationsData';
 import { useAuth } from '../context/AuthContext';
 import { TravelShowcaseCarousel } from '../components/TravelShowcaseCarousel';
@@ -121,6 +121,7 @@ export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
   const [customTripName, setCustomTripName] = useState('');
   const [saveNotes, setSaveNotes] = useState('');
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // AI Refinement State
   const [modificationPrompt, setModificationPrompt] = useState('');
@@ -186,7 +187,7 @@ export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
     setSaveSuccessMessage(null);
   };
 
-  const handleSaveTripToHistory = (e: React.FormEvent) => {
+  const handleSaveTripToHistory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activePlan) return;
 
@@ -221,6 +222,7 @@ export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
         durationText: effectiveTransport.durationText,
         estimatedCost: effectiveTransport.estimatedCostRange,
       } : undefined,
+      generatedPlan: activePlan,
       dailyItinerary: activePlan.dayWiseItinerary || [],
       waypoints: activePlan.waypoints || [],
       placesVisited: (activePlan.waypoints || []).map((w) => w.name),
@@ -232,10 +234,13 @@ export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
       memories: [],
     };
 
-    saveTrip(newSavedTrip, user?.uid);
-    if (user?.uid) {
-      void syncTripToSupabase(newSavedTrip, user.uid);
+    try {
+      await saveTrip(newSavedTrip, user?.uid);
+    } catch (error: any) {
+      setSaveError(error.message || 'Unable to save this trip to Supabase.');
+      return;
     }
+    setSaveError(null);
     setIsSaveModalOpen(false);
     setSaveSuccessMessage(`"${newSavedTrip.customName}" successfully updated & stored in your Trip History!`);
 
@@ -296,6 +301,7 @@ export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
             budgetTier: activeBudgetTier,
             customBudget: activeCustomBudget,
             transportMode: travelMode,
+            generatedPlan: data.updatedPlan,
             dailyItinerary: data.updatedPlan.dayWiseItinerary || activePlan.dayWiseItinerary || [],
             waypoints: data.updatedPlan.waypoints || activePlan.waypoints || [],
             placesVisited: (data.updatedPlan.waypoints || activePlan.waypoints || []).map((w: any) => w.name),
@@ -305,10 +311,7 @@ export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
             totalPlannedBudget: calculatedBudget.total,
             memories: [],
           };
-          saveTrip(updatedTrip, user?.uid);
-          if (user?.uid) {
-            void syncTripToSupabase(updatedTrip, user.uid);
-          }
+          await saveTrip(updatedTrip, user?.uid);
         }
 
         setModificationSuccess('Itinerary adjusted with your AI preferences & saved to database!');
@@ -466,6 +469,12 @@ export const TripItineraryPage: React.FC<TripItineraryPageProps> = ({
             >
               View in Trip History →
             </button>
+          </div>
+        )}
+
+        {saveError && (
+          <div role="alert" className="p-4 rounded-2xl bg-red-50 border border-red-200 text-sm text-red-700 animate-fade-in">
+            {saveError}
           </div>
         )}
 

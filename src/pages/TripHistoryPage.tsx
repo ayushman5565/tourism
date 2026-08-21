@@ -28,16 +28,9 @@ import {
 } from 'lucide-react';
 import { PageRoute, SavedTrip, TripMemory, TransportMode } from '../types';
 import { 
-  getSavedTrips, 
-  setSavedTrips,
-  deleteTrip, 
   saveTrip, 
-  addTripMemory, 
-  deleteTripMemory, 
-  updateTripSpending, 
   fetchUserTripsFromSupabase,
-  deleteTripFromSupabase,
-  syncTripToSupabase
+  deleteTripFromSupabase
 } from '../utils/tripStorage';
 import { useAuth } from '../context/AuthContext';
 import { TravelShowcaseCarousel } from '../components/TravelShowcaseCarousel';
@@ -57,6 +50,7 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
 }) => {
   const { user } = useAuth();
   const [trips, setTrips] = useState<SavedTrip[]>([]);
+  const [storageError, setStorageError] = useState<string | null>(null);
   const [selectedTrip, setSelectedTrip] = useState<SavedTrip | null>(null);
   
   // Custom in-app Delete Confirmation Modal State
@@ -85,31 +79,22 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
   }, [user?.uid]);
 
   const loadTrips = async () => {
-    if (user?.uid) {
-      const cloudList = await fetchUserTripsFromSupabase(user.uid);
-      const localList = getSavedTrips(user.uid);
-      // A failed or unavailable Supabase request returns an empty list. Keep
-      // the local-first archive intact instead of overwriting it with [].
-      const mergedTrips = new Map(localList.map((trip) => [trip.id, trip]));
-      cloudList.forEach((trip) => mergedTrips.set(trip.id, trip));
-      const combinedList = Array.from(mergedTrips.values()).sort((a, b) =>
-        new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime()
-      );
-
-      setSavedTrips(combinedList, user.uid);
-      setTrips(combinedList);
-      if (selectedTrip) {
-        const refreshed = combinedList.find((t) => t.id === selectedTrip.id);
-        setSelectedTrip(refreshed || null);
-      }
+    if (!user?.uid) {
+      setTrips([]);
+      setSelectedTrip(null);
       return;
     }
 
-    const localList = getSavedTrips(user?.uid);
-    setTrips(localList);
-    if (selectedTrip) {
-      const refreshed = localList.find((t) => t.id === selectedTrip.id);
-      setSelectedTrip(refreshed || null);
+    try {
+      setStorageError(null);
+      const databaseTrips = await fetchUserTripsFromSupabase(user.uid);
+      setTrips(databaseTrips);
+      if (selectedTrip) {
+        setSelectedTrip(databaseTrips.find((t) => t.id === selectedTrip.id) || null);
+      }
+    } catch (error: any) {
+      setTrips([]);
+      setStorageError(error.message || 'Unable to load your trips from Supabase.');
     }
   };
 
@@ -120,15 +105,16 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
 
   const handleConfirmDelete = async () => {
     if (!tripToDelete) return;
-    deleteTrip(tripToDelete.id, user?.uid);
-    if (user) {
+    try {
       await deleteTripFromSupabase(tripToDelete.id);
+      if (selectedTrip?.id === tripToDelete.id) {
+        setSelectedTrip(null);
+      }
+      setTripToDelete(null);
+      await loadTrips();
+    } catch (error: any) {
+      setStorageError(error.message || 'Unable to delete this trip from Supabase.');
     }
-    if (selectedTrip?.id === tripToDelete.id) {
-      setSelectedTrip(null);
-    }
-    setTripToDelete(null);
-    await loadTrips();
   };
 
   const handleContinue = (trip: SavedTrip, e?: React.MouseEvent) => {
@@ -160,13 +146,14 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
       actualSpending: spendingNum,
       updatedAt: new Date().toISOString(),
     };
-    saveTrip(updated, user?.uid);
-    if (user) {
-      await syncTripToSupabase(updated, user.uid);
+    try {
+      await saveTrip(updated, user?.uid);
+      setIsEditingTrip(false);
+      setSelectedTrip(updated);
+      await loadTrips();
+    } catch (error: any) {
+      setStorageError(error.message || 'Unable to update this trip in Supabase.');
     }
-    setIsEditingTrip(false);
-    setSelectedTrip(updated);
-    await loadTrips();
   };
 
   // Handle Photo Upload (File or URL)
@@ -193,20 +180,24 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
     e.preventDefault();
     if (!selectedTrip || !memoryPhotoUrl.trim() || !memoryCaption.trim()) return;
 
-    const newMem = addTripMemory(selectedTrip.id, {
+    const newMem: TripMemory = {
+      id: `mem-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       photoUrl: memoryPhotoUrl.trim(),
       caption: memoryCaption.trim(),
       date: memoryDate,
       locationTag: memoryLocationTag.trim() || selectedTrip.destination,
-    }, user?.uid);
+    };
 
-    if (newMem && user) {
+    try {
       const updatedTrip: SavedTrip = {
         ...selectedTrip,
         memories: [newMem, ...(selectedTrip.memories || [])],
         updatedAt: new Date().toISOString(),
       };
-      await syncTripToSupabase(updatedTrip, user.uid);
+      await saveTrip(updatedTrip, user?.uid);
+    } catch (error: any) {
+      setStorageError(error.message || 'Unable to add this memory to Supabase.');
+      return;
     }
 
     setMemoryPhotoUrl('');
@@ -218,20 +209,28 @@ export const TripHistoryPage: React.FC<TripHistoryPageProps> = ({
 
   const handleDeleteMemory = async (memoryId: string) => {
     if (!selectedTrip) return;
-    deleteTripMemory(selectedTrip.id, memoryId, user?.uid);
-    if (user) {
+    try {
       const updatedTrip: SavedTrip = {
         ...selectedTrip,
         memories: (selectedTrip.memories || []).filter((m) => m.id !== memoryId),
         updatedAt: new Date().toISOString(),
       };
-      await syncTripToSupabase(updatedTrip, user.uid);
+      await saveTrip(updatedTrip, user?.uid);
+      await loadTrips();
+    } catch (error: any) {
+      setStorageError(error.message || 'Unable to delete this memory from Supabase.');
     }
-    await loadTrips();
   };
 
   return (
     <div className="min-h-screen bg-peaceful-bg-pattern text-[#202422] pb-24">
+      {storageError && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5">
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {storageError}
+          </div>
+        </div>
+      )}
       
       {/* Header Banner */}
       <div className="bg-[#FAF7F2] border-b border-[#EAE3D6] py-10">
