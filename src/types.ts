@@ -283,6 +283,9 @@ export interface GalleryPhoto {
   url: string;
   dateAdded: string;
   fileName?: string;
+  type?: 'image' | 'video';
+  googleDriveFileId?: string;
+  googleDriveWebViewLink?: string;
 }
 
 export interface SmartPlace {
@@ -291,4 +294,31 @@ export interface SmartPlace {
   note?: string; // Small note e.g. "Beautiful mountain views and a peaceful stop."
   photos: GalleryPhoto[];
   createdAt: string;
+  linkedTripId?: string;
+  linkedTripName?: string;
+}
+
+// GOOGLE DRIVE INTEGRATION TYPES
+export interface GoogleDriveCredentials {
+  accessToken: string;
+  refreshToken?: string;
+  tokenExpiry?: number;
+  connectedAt: string;
+  userEmail?: string;
+  userName?: string;
+}
+
+export interface GoogleDriveUploadResult {
+  fileId: string;
+  webViewLink: string;
+  webContentLink?: string;
+  name: string;
+  size: number;
+  mimeType: string;
+}
+
+export interface GoogleDriveFolder {
+  id: string;
+  name: string;
+  tripId?: string;
 }
